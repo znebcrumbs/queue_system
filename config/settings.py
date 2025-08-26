@@ -37,7 +37,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+     # Custom apps
+    'q_accounts',
+    'q_queues',
+    'q_survey',
 ]
+
+AUTH_USER_MODEL = 'q_accounts.User'
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -74,8 +82,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'queue_system',       # database name you created
+        'USER': 'queue_admin',        # postgres role you created
+        'PASSWORD': 'admin',          # password you assigned
+        'HOST': 'localhost',          # since it's running locally
+        'PORT': '5432',               # default postgres port
     }
 }
 
