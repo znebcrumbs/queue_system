@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Queue Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f4f4f4; }
+        .waiting { color: orange; font-weight: bold; }
+        .served { color: green; font-weight: bold; }
+        .cancelled { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Queue Dashboard</h1>
+
+    <h2>Service Types</h2>
+    <ul>
+        {% for service in services %}
+            <li>{{ service.name }} — {{ service.description }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Recent Queue Entries</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Number</th>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Created At</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+                <tr>
+                    <td>{{ entry.queue_number }}</td>
+                    <td>{{ entry.service_type.name }}</td>
+                    <td class="{{ entry.status|lower }}">{{ entry.get_status_display }}</td>
+                    <td>{{ entry.created_at }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4">No entries yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
