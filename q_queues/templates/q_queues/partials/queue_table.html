@@ -1,0 +1,31 @@
+{# q_queues/templates/q_queues/partials/queue_table.html #} 
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Number</th>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+            <tr data-id="{{ entry.id }}" data-status="{{ entry.status }}">
+                <td class="q-number"><strong>{{ entry.queue_number }}</strong></td>
+                <td>{{ entry.service_type.name }}</td>
+                <td class="q-status">
+                    {{ entry.get_status_display }}
+                </td>
+                <td>{{ entry.created_at|date:"H:i:s" }}</td>
+                <td>
+                    <a href="{% url 'update_queue_entry' entry.id %}?status=SERVED" class="btn btn-success btn-sm">Serve</a>
+                    <a href="{% url 'update_queue_entry' entry.id %}?status=RETURNED" class="btn btn-warning btn-sm">Return</a>
+                    <a href="{% url 'update_queue_entry' entry.id %}?status=CANCELLED" class="btn btn-danger btn-sm">Cancel</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No entries yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

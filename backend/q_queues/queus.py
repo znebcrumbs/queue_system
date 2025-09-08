@@ -2,12 +2,26 @@ from django.db import models
 from django.utils import timezone
 from q_accounts.models import User
 
+
 class ServiceType(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+    prefix = models.CharField(max_length=5, blank=True, null=True)  # <-- Add this
+
+    def get_prefix(self):
+        return (self.prefix or self.name[:2]).upper()
+
+    def generate_queue_number(self):
+        from django.utils import timezone
+        today = timezone.now().date()
+        count_today = QueueEntry.objects.filter(
+            service_type=self, created_at__date=today
+        ).count() + 1
+        return f"{self.get_prefix()}-{count_today:03d}"
 
     def __str__(self):
         return self.name
+
 
 class QueueEntry(models.Model):
     class Status(models.TextChoices):
