@@ -51,8 +51,13 @@ def queue_list(request):
     #get latest
     entries = QueueEntry.objects.select_related("service_type").order_by("-created_at")[:20]
 
+    from django.template.loader import render_to_string
 
-    html = render_to_string("q_queues/partials/queue_table.html", {"entries": entries})
+    html = render_to_string(
+        "q_queues/partials/queue_table.html",
+        {"entries": entries},
+        request=request 
+        )
 
     served_qs = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at")[:2]
     served_numbers = list(served_qs.values_list("queue_number", flat=True))
@@ -108,7 +113,7 @@ def dashboard(request):
     entries = QueueEntry.objects.order_by("-created_at")[:10]
     served_entries = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at")[:2] # latest 2 served
 
-    return render(request, "queues/dashboard.html", {
+    return render(request, "q_queues/dashboard.html", {
         "services": services,
         "entries": entries,
         "served_entries": served_entries,
@@ -148,12 +153,19 @@ def kiosk(request):
         )
         return redirect("queue_ticket", entry_id=entry.id)
 
-    return render(request, "queues/kiosk.html", {"services": services})
+    return render(request, "q_queues/kiosk.html", {"services": services})
+
 
 
 def queue_ticket(request, entry_id):
-    entry = QueueEntry.objects.get(id=entry_id)
-    return render(request, "queues/ticket.html", {"entry": entry})
+    entry = get_object_or_404(QueueEntry, pk=entry_id)
+
+    # If AJAX request, return just status para sure kay galibog na ko
+    if request.GET.get("ajax"):
+        return JsonResponse({"status": entry.get_status_display()})
+
+    return render(request, "q_queues/ticket.html", {"entry": entry})
+
 
 
 import qrcode
