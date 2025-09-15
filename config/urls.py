@@ -24,14 +24,14 @@ urlpatterns = [
     path("accounts/", include("q_accounts.urls")),
     path("queues/", include("q_queues.urls")),
     path("survey/", include("q_survey.urls")),
-    path("queues/", include("q_queues.urls")),
-    path("survey/", include("q_survey.urls")),
+    path("login/", auth_views.LoginView.as_view(template_name="accounts/login.html"), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),  
 
     path("", queue_views.kiosk, name="landing"),  
     path("queues/", include("q_queues.urls")),
 
     # Authentication
-    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
-    path("logout/", auth_views.LogoutView.as_view(next_page="landing"), name="logout"),
+   # path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+   # path("logout/", auth_views.LogoutView.as_view(next_page="landing"), name="logout"),
 
 ]

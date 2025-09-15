@@ -47,28 +47,35 @@ from django.template.loader import render_to_string
 from django.http import JsonResponse
 from .models import QueueEntry
 
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+from django.contrib.auth.decorators import login_required
+
+
+@login_required
 def queue_list(request):
-    #get latest
-    entries = QueueEntry.objects.select_related("service_type").order_by("-created_at")[:20]
+    user = request.user
 
-    from django.template.loader import render_to_string
+    if user.role == "ADMIN":
+        entries = QueueEntry.objects.exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
+    else:
+        entries = QueueEntry.objects.filter(
+            service_type__assigned_role=user.role
+        ).exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
 
-    html = render_to_string(
-        "q_queues/partials/queue_table.html",
-        {"entries": entries},
-        request=request 
-        )
+    # latest 2 served queues
+    served_entries = QueueEntry.objects.filter(
+        status=QueueEntry.Status.SERVED
+    ).order_by("-served_at")[:2]
 
-    served_qs = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at")[:2]
-    served_numbers = list(served_qs.values_list("queue_number", flat=True))
-
-    latest_id = entries[0].id if entries else None
+    html = render_to_string("q_queues/partials/queue_table.html", {"entries": entries}, request=request)
 
     return JsonResponse({
         "html": html,
-        "served": served_numbers,
-        "latest_id": latest_id,
+        "served": [e.queue_number for e in served_entries],
+        "latest_id": entries[0].id if entries else None,
     })
+
 
 
 from django.views.decorators.csrf import csrf_exempt
@@ -105,19 +112,37 @@ def update_queue_entry(request, entry_id):
     return redirect("dashboard")
 
 
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from .models import QueueEntry, ServiceType
 
+@login_required
 def dashboard(request):
-    services = ServiceType.objects.all()
-    entries = QueueEntry.objects.order_by("-created_at")[:10]
-    served_entries = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at")[:2] # latest 2 served
+    user = request.user
+
+    # Admin → see all
+    if user.role == "ADMIN":
+        services = ServiceType.objects.all()
+        entries = QueueEntry.objects.order_by("-created_at")[:10]
+
+    # Staff → filter by assigned_role
+    else:
+        services = ServiceType.objects.filter(assigned_role=user.role)
+        entries = QueueEntry.objects.filter(
+            service_type__assigned_role=user.role
+        ).order_by("-created_at")[:10]
+
+    served_entries = QueueEntry.objects.filter(
+        status=QueueEntry.Status.SERVED,
+        service_type__assigned_role=user.role if user.role != "ADMIN" else None
+    ).order_by("-served_at")[:2]
 
     return render(request, "q_queues/dashboard.html", {
         "services": services,
         "entries": entries,
         "served_entries": served_entries,
     })
+
 from django.shortcuts import render, redirect, get_object_or_404
 
 def update_status(request, entry_id, status):

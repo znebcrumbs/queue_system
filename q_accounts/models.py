@@ -4,13 +4,13 @@ from django.db import models
 class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = "ADMIN", "Administrator"
-        STAFF = "STAFF", "Staff"
-        CLIENT = "CLIENT", "Client"
+        REGISTRAR = "REGISTRAR", "REGISTRAR"
+        MIS = "MIS", "MIS"
 
     role = models.CharField(
         max_length=20,
         choices=Role.choices,
-        default=Role.CLIENT
+        default=Role.MIS
     )
 
     def __str__(self):
