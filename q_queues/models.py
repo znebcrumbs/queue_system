@@ -28,9 +28,12 @@ class ServiceType(models.Model):
     def generate_queue_number(self):
         today = timezone.now().date()
         count_today = QueueEntry.objects.filter(
-            service_type=self, created_at__date=today
-        ).count() + 1
-        return f"{self.get_prefix()}-{count_today:01d}"
+        service_type=self, created_at__date=today
+                ).count()
+    # roll over every 256 tickets
+        number = (count_today % 256) + 1
+        return f"{self.get_prefix()}-{number:01d}"
+
 
 
 
@@ -41,19 +44,29 @@ class QueueEntry(models.Model):
         RETURNED = "RETURNED", "Returned"
         CANCELLED = "CANCELLED", "Cancelled"
 
-    client = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    service_type = models.ForeignKey(ServiceType, on_delete=models.CASCADE)
-    queue_number = models.CharField(max_length=10)
+    client = models.ForeignKey("q_accounts.User", on_delete=models.SET_NULL, null=True, blank=True)
+    service_type = models.ForeignKey("ServiceType", on_delete=models.CASCADE)
+    queue_number = models.CharField(max_length=10)  # NO unique=True
     qr_code_data = models.TextField()
-    status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.WAITING
-    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.WAITING)
     created_at = models.DateTimeField(default=timezone.now)
     served_at = models.DateTimeField(null=True, blank=True)
+    created_date = models.DateField(auto_now_add=True)
+    
+    name = models.CharField(max_length=100)
+    mobile_number = models.CharField(max_length=50)   
+    email = models.EmailField(max_length=254)         
+    section = models.CharField(max_length=100)        
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["queue_number", "service_type", "created_at"],
+                name="unique_queue_per_service_per_day"
+            )
+        ]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.queue_number} - {self.service_type.name}"
+

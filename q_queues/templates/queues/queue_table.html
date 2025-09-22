@@ -1,0 +1,35 @@
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Number</th>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+            <tr>
+                <td><strong>{{ entry.queue_number }}</strong></td>
+                <td>{{ entry.service_type.name }}</td>
+                <td>
+                    <span class="badge 
+                        {% if entry.status == 'WAITING' %} bg-warning 
+                        {% elif entry.status == 'SERVED' %} bg-success 
+                        {% elif entry.status == 'CANCELLED' %} bg-danger 
+                        {% else %} bg-secondary {% endif %}">
+                        {{ entry.get_status_display }}
+                    </span>
+                </td>
+                <td>{{ entry.created_at|date:"H:i:s" }}</td>
+                <td>
+                    <a href="{% url 'update_status' entry.id 'SERVED' %}" class="btn btn-sm btn-success">Serve</a>
+                    <a href="{% url 'update_status' entry.id 'CANCELLED' %}" class="btn btn-sm btn-danger">Cancel</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5" class="text-center">No entries yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

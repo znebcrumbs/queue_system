@@ -160,24 +160,44 @@ from django.utils import timezone
 import uuid
 from .models import ServiceType, QueueEntry
 
-def kiosk(request):
-    services = ServiceType.objects.all()
+from django.db import IntegrityError, transaction
+from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404
+from .models import ServiceType, QueueEntry
+import uuid
 
+from django.shortcuts import redirect
+
+def kiosk(request):
     if request.method == "POST":
         service_id = request.POST.get("service_type")
-        service = get_object_or_404(ServiceType, id=service_id)  # <-- define service first
+        name = request.POST.get("name")
+        mobile = request.POST.get("mobile_number")
+        email = request.POST.get("email")
+        section = request.POST.get("section")
 
-        # now you can call the method
-        queue_number = service.generate_queue_number()
+        service = get_object_or_404(ServiceType, id=service_id)
 
-        # make sure to use the correct field: qr_code or qr_code_data
-        entry = QueueEntry.objects.create(
-            service_type=service,
-            queue_number=queue_number,
-            qr_code_data=str(uuid.uuid4())  # or qr_code=... if that's the field in your model
-        )
-        return redirect("queue_ticket", entry_id=entry.id)
+        for _ in range(3):
+            try:
+                with transaction.atomic():
+                    queue_number = service.generate_queue_number()
+                    entry = QueueEntry.objects.create(
+                        service_type=service,
+                        queue_number=queue_number,
+                        qr_code_data=str(uuid.uuid4()),
+                        name=name,
+                        mobile_number=mobile,
+                        email=email,
+                        section=section,
+                    )
+                return redirect("queue_ticket", entry_id=entry.id)
+            except IntegrityError:
+                continue
 
+        return JsonResponse({"error": "Ultra Super Rare Error, Show this to the cashier to get a free discount!"}, status=500)
+
+    services = ServiceType.objects.all()
     return render(request, "q_queues/kiosk.html", {"services": services})
 
 
@@ -195,12 +215,13 @@ def queue_ticket(request, entry_id):
 
 import qrcode
 from django.http import HttpResponse
-
+import io
 def generate_qr(request, entry_id):
-    from .models import QueueEntry
-    entry = QueueEntry.objects.get(id=entry_id)
-    qr = qrcode.make(entry.qr_code)  # qr_code = UUID stored in DB
-    response = HttpResponse(content_type="image/png")
-    qr.save(response, "PNG")
-    return response
+    entry = get_object_or_404(QueueEntry, id=entry_id)
+    qr = qrcode.make(entry.qr_code_data)  # ✅ use the correct field
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    buffer.seek(0)
+    return HttpResponse(buffer.getvalue(), content_type="image/png")
+
 
