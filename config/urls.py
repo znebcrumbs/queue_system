@@ -18,14 +18,15 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from q_queues import views as queue_views
+from q_accounts.views import CentralLoginView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("q_accounts.urls")),
     path("queues/", include("q_queues.urls")),
     path("survey/", include("q_survey.urls")),
-    path("login/", auth_views.LoginView.as_view(template_name="accounts/login.html"), name="login"),
-    path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),  
+    path("login/", CentralLoginView.as_view(), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
     path("", queue_views.kiosk, name="landing"),  
     path("queues/", include("q_queues.urls")),

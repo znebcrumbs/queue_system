@@ -1,7 +1,6 @@
 from django.contrib import admin
 from .models import QueueEntry, ServiceType
 
-
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):
     list_display = ("name", "description")
@@ -14,3 +13,7 @@ class QueueEntryAdmin(admin.ModelAdmin):
     search_fields = ("queue_number", "service_type__name", "client__username")
     ordering = ("-created_at",)
     readonly_fields = ("created_at", "served_at")
+
+admin.site.site_header = "Queue Management System Admin"
+admin.site.site_title = "QMS Admin Portal"
+admin.site.index_title = "Welcome to the Queue System Admin"

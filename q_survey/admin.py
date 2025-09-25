@@ -8,3 +8,9 @@ class SurveyResponseAdmin(admin.ModelAdmin):
     search_fields = ("user__username", "feedback")
     ordering = ("-created_at",)
     readonly_fields = ("created_at",)
+
+
+
+admin.site.site_header = "Queue Management System Admin"
+admin.site.site_title = "QMS Admin Portal"
+admin.site.index_title = "Welcome to the Queue System Admin"
