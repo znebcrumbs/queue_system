@@ -34,7 +34,7 @@ class ServiceType(models.Model):
         number = (count_today % 256) + 1
         return f"{self.get_prefix()}-{number:01d}"
 
-
+#prio class
 
 
 class QueueEntry(models.Model):

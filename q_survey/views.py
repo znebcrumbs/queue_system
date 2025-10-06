@@ -48,3 +48,47 @@ def submit_survey(request):
         "feedback": survey.feedback,
         "created_at": survey.created_at,
     }, status=201)
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .models import SurveyResponse
+from q_queues.models import QueueEntry
+
+@login_required
+def survey_view(request, entry_id):
+    entry = get_object_or_404(QueueEntry, id=entry_id)
+
+    questions = [
+        ("registration_ease", "How easy was it to register and get a queue number?"),
+        ("system_usability", "Was the kiosk/web system interface user-friendly?"),
+        ("realtime_updates", "Were the real-time queue updates clear and helpful?"),
+        ("waiting_time_accuracy", "How would you rate the estimated waiting time displayed?"),
+        ("waiting_time_satisfaction", "How satisfied are you with the waiting time before being served?"),
+        ("staff_professionalism", "How would you rate the staff’s courtesy and professionalism?"),
+        ("overall_satisfaction", "How satisfied are you with the overall service provided?")
+    ]
+
+    if request.method == "POST":
+        data = {
+            "user": request.user,
+            "service_type": entry.service_type,
+            "queues_entry": entry,
+            "feedback": request.POST.get("feedback", ""),
+            "rating": request.POST.get("overall_satisfaction")  # treat overall as main rating
+        }
+
+        for field, _ in questions:
+            value = request.POST.get(field)
+            if value:
+                data[field] = value
+
+        SurveyResponse.objects.create(**data)
+        messages.success(request, "Thank you for your feedback!")
+        return redirect("queue_ticket", entry_id=entry.id)
+
+    return render(request, "q_survey/survey_form.html", {
+        "entry": entry,
+        "rating_choices": SurveyResponse.Rating.choices,
+        "questions": questions,   # pass list into template
+    })

@@ -4,7 +4,7 @@ from django.db import models
 class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = "ADMIN", "Administrator"
-        REGISTRAR = "REGISTRAR", "REGISTRAR"
+        STAFF= "REGISTRAR", "REGISTRAR"
         MIS = "MIS", "MIS"
 
     role = models.CharField(

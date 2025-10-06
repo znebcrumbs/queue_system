@@ -9,4 +9,7 @@ urlpatterns = [
     path("kiosk/", views.kiosk, name="kiosk"),
     path("ticket/<int:entry_id>/", views.queue_ticket, name="queue_ticket"), #html
     path("qr/<int:entry_id>/", views.generate_qr, name="generate_qr"),
+    path("reports/", views.reports_dashboard, name="reports_dashboard"),
+    path("reports/queues.csv", views.export_queues_csv, name="export_queues_csv"),
+    path("reports/surveys.csv", views.export_surveys_csv, name="export_surveys_csv"),
 ]

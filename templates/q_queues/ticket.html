@@ -1,3 +1,4 @@
+
 {% load static %}
 <!DOCTYPE html>
 <html>
@@ -41,6 +42,12 @@
         <p class="status text-primary" id="status">{{ entry.get_status_display }}</p>
         <img src="{% url 'generate_qr' entry.id %}" alt="QR Code">
         <p><small>Issued at {{ entry.created_at|date:"H:i:s" }}</small></p>
+    </div>
+    
+    <div class="text-center mt-4">
+    <a href="{% url 'survey' entry.id %}" class="btn btn-outline-primary">
+        Give Feedback
+    </a>
     </div>
 
     <audio id="ding" src="{% static 'sounds/ding.mp3' %}" preload="auto"></audio>

@@ -212,16 +212,144 @@ def queue_ticket(request, entry_id):
     return render(request, "q_queues/ticket.html", {"entry": entry})
 
 
-
-import qrcode
+from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
+from django.urls import reverse
+import qrcode
 import io
+
 def generate_qr(request, entry_id):
     entry = get_object_or_404(QueueEntry, id=entry_id)
-    qr = qrcode.make(entry.qr_code_data)  # ✅ use the correct field
+    
+    # 
+    ticket_url = request.build_absolute_uri(reverse("queue_ticket", args=[entry.id]))
+    
+    # 
     buffer = io.BytesIO()
     qr.save(buffer, format="PNG")
     buffer.seek(0)
+    
     return HttpResponse(buffer.getvalue(), content_type="image/png")
 
+# q_queues/views.py (add near other imports)
+from django.shortcuts import render
+from django.db.models import Count, Avg, F, DurationField, ExpressionWrapper
+from django.db.models.functions import ExtractHour
+from django.http import HttpResponse
+import csv
+from datetime import date, timedelta
 
+# assume QueueEntry and ServiceType are already imported in this file
+# from .models import QueueEntry, ServiceType
+
+# Reports dashboard
+def reports_dashboard(request):
+    today = date.today()
+    week_start = today - timedelta(days=7)
+
+    # General counts
+    total_today = QueueEntry.objects.filter(created_at__date=today).count()
+    served_today = QueueEntry.objects.filter(created_at__date=today, status=QueueEntry.Status.SERVED).count()
+    total_week = QueueEntry.objects.filter(created_at__date__gte=week_start).count()
+
+    # Average waiting time (served entries): served_at - created_at
+    served_qs = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED, served_at__isnull=False)
+    # expression for duration in seconds
+    wait_expr = ExpressionWrapper(F('served_at') - F('created_at'), output_field=DurationField())
+    avg_wait = served_qs.annotate(wait_time=wait_expr).aggregate(avg_wait=Avg('wait_time'))['avg_wait']
+
+    # service-level stats: number served and avg wait per service (last 7 days)
+    service_stats_qs = (
+        served_qs.filter(created_at__date__gte=week_start)
+        .values('service_type__id', 'service_type__name')
+        .annotate(served_count=Count('id'), avg_wait=Avg(wait_expr))
+        .order_by('-served_count')
+    )
+
+    # peak hours (from all entries created in last 7 days)
+    peak_qs = (
+        QueueEntry.objects.filter(created_at__date__gte=week_start)
+        .annotate(hour=ExtractHour('created_at'))
+        .values('hour')
+        .annotate(cnt=Count('id'))
+        .order_by('-cnt')
+    )
+    # convert to arrays for charts
+    hours = [r['hour'] for r in peak_qs]
+    hour_counts = [r['cnt'] for r in peak_qs]
+
+    # Surveys (if q_survey is installed)
+    try:
+        from q_survey.models import SurveyResponse
+        avg_rating = SurveyResponse.objects.aggregate(avg=Avg('rating'))['avg'] or 0
+        rating_dist_qs = SurveyResponse.objects.values('rating').annotate(cnt=Count('id')).order_by('rating')
+        rating_labels = [r['rating'] for r in rating_dist_qs]
+        rating_counts = [r['cnt'] for r in rating_dist_qs]
+        recent_feedbacks = SurveyResponse.objects.filter(feedback__gt="").order_by('-created_at')[:10]
+    except Exception:
+        avg_rating = 0
+        rating_labels = []
+        rating_counts = []
+        recent_feedbacks = []
+
+    context = {
+        'total_today': total_today,
+        'served_today': served_today,
+        'total_week': total_week,
+        'avg_wait': avg_wait,
+        'service_stats': list(service_stats_qs),
+        'peak_hours': hours,
+        'peak_counts': hour_counts,
+        'avg_rating': avg_rating,
+        'rating_labels': rating_labels,
+        'rating_counts': rating_counts,
+        'recent_feedbacks': recent_feedbacks,
+    }
+    return render(request, "q_queues/reports_dashboard.html", context)
+
+
+# CSV exports
+def export_queues_csv(request):
+    qs = QueueEntry.objects.order_by('-created_at').all()
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="queues.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['id', 'queue_number', 'service_type', 'status', 'client', 'created_at', 'served_at', 'qr_code_data'])
+    for e in qs:
+        writer.writerow([
+            e.id,
+            e.queue_number,
+            e.service_type.name if e.service_type else '',
+            e.status,
+            (e.client.username if e.client else ''),
+            e.created_at.isoformat() if e.created_at else '',
+            e.served_at.isoformat() if e.served_at else '',
+            e.qr_code_data or '',
+        ])
+    return response
+
+
+def export_surveys_csv(request):
+    try:
+        from q_survey.models import SurveyResponse
+    except Exception:
+        return HttpResponse("Survey app not installed", status=404)
+
+    qs = SurveyResponse.objects.order_by('-created_at').all()
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="surveys.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['id', 'user', 'service_type', 'queue_number', 'rating', 'feedback', 'created_at'])
+    for s in qs:
+        writer.writerow([
+            s.id,
+            s.user.username if s.user else '',
+            s.service_type.name if s.service_type else '',
+            s.queues_entry.queue_number if s.queues_entry else '',
+            s.rating,
+            s.feedback,
+            s.created_at.isoformat(),
+        ])
+    return response

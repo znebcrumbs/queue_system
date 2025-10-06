@@ -42,17 +42,26 @@
     </style>
 </head>
 <body class="container-fluid py-4">
-    <div class="navbar navbar-custom rounded-3 px-4 py-3 mb-4 d-flex justify-content-between align-items-center">
-        <h1 class="h3 mb-0">Queue Kiosk</h1>
+   <div class="navbar navbar-custom rounded-3 px-4 py-3 mb-4 d-flex justify-content-between align-items-center">
+    <h1 class="h3 mb-0">Queue Kiosk</h1>
+    <div class="d-flex align-items-center gap-2">
         {% if user.is_authenticated %}
-            <form method="post" action="{% url 'logout' %}">
+            <a href="{% url 'reports_dashboard' %}" class="btn btn-outline-dark btn-sm fw-semibold">Reports</a>
+
+            {% if user.role == "ADMIN" %}
+                <a href="{% url 'admin:index' %}" class="btn btn-outline-dark btn-sm fw-semibold">Admin Dashboard</a>
+            {% endif %}
+
+            <form method="post" action="{% url 'logout' %}" class="d-inline">
                 {% csrf_token %}
-                <button Class="btn btn-danger btn-sm fw-semibold" type="submit">Logout</button>
+                <button class="btn btn-danger btn-sm fw-semibold" type="submit">Logout</button>
             </form>
         {% else %}
             <a href="{% url 'login' %}" class="btn btn-light btn-sm fw-semibold">Staff Login</a>
         {% endif %}
     </div>
+</div>
+
 
     <div class="row g-4">
         <div class="col-lg-6">

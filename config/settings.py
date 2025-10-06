@@ -58,12 +58,19 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
+# config/settings.py
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],  # keep empty if you only use app templates
-        "APP_DIRS": True,  # <— important: makes Django search in each app/templates/
+        "DIRS": [
+            BASE_DIR / "templates",  # 👈 this is where you define your global template folder
+        ],
+        "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",

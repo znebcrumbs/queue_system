@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 from q_accounts.models import User
 
-class SurveyResponse(models.Model):
+class SurveyResponse(models.Model): 
     class Rating(models.IntegerChoices):
         VERY_POOR = 1, "Very Poor"
         POOR = 2, "Poor"
@@ -13,8 +13,23 @@ class SurveyResponse(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     service_type = models.ForeignKey("q_queues.ServiceType", on_delete=models.SET_NULL, null=True, blank=True)
     queues_entry = models.OneToOneField("q_queues.QueueEntry", on_delete=models.CASCADE, null=True, blank=True)
+
+   
     rating = models.IntegerField(choices=Rating.choices)
     feedback = models.TextField(blank=True)
+
+
+    department = models.CharField(max_length=100, blank=True, null=True)
+    purpose =  models.CharField(max_length=100, blank=True, null=True)
+
+    registration_ease = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+    system_usability = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+    realtime_updates = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+    waiting_time_accuracy = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+    waiting_time_satisfaction = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+    staff_professionalism = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+    overall_satisfaction = models.IntegerField(choices=Rating.choices, null=True, blank=True)
+
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
