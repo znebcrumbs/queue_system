@@ -7,6 +7,7 @@ class User(AbstractUser):
         STAFF= "REGISTRAR", "REGISTRAR"
         MIS = "MIS", "MIS"
 
+    department = models.ForeignKey("q_queues.Department", on_delete=models.SET_NULL, null=True, blank=True)
     role = models.CharField(
         max_length=20,
         choices=Role.choices,

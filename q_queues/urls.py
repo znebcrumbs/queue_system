@@ -2,6 +2,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+     path("", views.department_selection, name="department_selection"),  # splash page
+    path("kiosk/<int:department_id>/", views.kiosk, name="kiosk"),
     path("dashboard/", views.dashboard, name="dashboard"), #html
     path("create/", views.create_queue_entry, name="create_queue_entry"),
     path("list/", views.queue_list, name="queue_list"),

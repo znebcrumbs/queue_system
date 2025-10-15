@@ -60,11 +60,11 @@ def queue_list(request):
         entries = QueueEntry.objects.exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
     else:
         entries = QueueEntry.objects.filter(
-            service_type__assigned_role=user.role
+            department=user.department
         ).exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
 
-    # latest 2 served queues
     served_entries = QueueEntry.objects.filter(
+        department=user.department if user.role != "ADMIN" else None,
         status=QueueEntry.Status.SERVED
     ).order_by("-served_at")[:2]
 
@@ -75,6 +75,7 @@ def queue_list(request):
         "served": [e.queue_number for e in served_entries],
         "latest_id": entries[0].id if entries else None,
     })
+
 
 
 
@@ -120,28 +121,29 @@ from .models import QueueEntry, ServiceType
 def dashboard(request):
     user = request.user
 
-    # Admin → see all
     if user.role == "ADMIN":
+        # Admin sees all departments and queues
         services = ServiceType.objects.all()
-        entries = QueueEntry.objects.order_by("-created_at")[:10]
-
-    # Staff → filter by assigned_role
+        entries = QueueEntry.objects.select_related("department").order_by("-created_at")[:10]
+        served_entries = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at")[:2]
     else:
-        services = ServiceType.objects.filter(assigned_role=user.role)
-        entries = QueueEntry.objects.filter(
-            service_type__assigned_role=user.role
-        ).order_by("-created_at")[:10]
+        # Staff sees only their department
+        if not user.department:
+            return redirect("login")
 
-    served_entries = QueueEntry.objects.filter(
-        status=QueueEntry.Status.SERVED,
-        service_type__assigned_role=user.role if user.role != "ADMIN" else None
-    ).order_by("-served_at")[:2]
+        services = ServiceType.objects.filter(department=user.department)
+        entries = QueueEntry.objects.filter(department=user.department).order_by("-created_at")[:10]
+        served_entries = QueueEntry.objects.filter(
+            department=user.department,
+            status=QueueEntry.Status.SERVED
+        ).order_by("-served_at")[:2]
 
     return render(request, "q_queues/dashboard.html", {
         "services": services,
         "entries": entries,
         "served_entries": served_entries,
     })
+
 
 from django.shortcuts import render, redirect, get_object_or_404
 
@@ -164,19 +166,26 @@ from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from .models import ServiceType, QueueEntry
+from .models import Department
 import uuid
 
 from django.shortcuts import redirect
 
 def kiosk(request):
+    department = get_object_or_404(Department, id=department_id) 
     if request.method == "POST":
         service_id = request.POST.get("service_type")
+        department_id = request.POST.get("department")
         name = request.POST.get("name")
         mobile = request.POST.get("mobile_number")
         email = request.POST.get("email")
         section = request.POST.get("section")
 
+       
         service = get_object_or_404(ServiceType, id=service_id)
+        if service.department != department:
+            return JsonResponse({"error": "Invalid service for this department"}, status=400)
+
 
         for _ in range(3):
             try:
@@ -184,6 +193,7 @@ def kiosk(request):
                     queue_number = service.generate_queue_number()
                     entry = QueueEntry.objects.create(
                         service_type=service,
+                        department=department,
                         queue_number=queue_number,
                         qr_code_data=str(uuid.uuid4()),
                         name=name,
@@ -195,10 +205,15 @@ def kiosk(request):
             except IntegrityError:
                 continue
 
-        return JsonResponse({"error": "Ultra Super Rare Error, Show this to the cashier to get a free discount!"}, status=500)
+        return JsonResponse({"error": "Failed to create ticket. Please try again."}, status=500)
 
-    services = ServiceType.objects.all()
-    return render(request, "q_queues/kiosk.html", {"services": services})
+    # Filter services by department
+    services = ServiceType.objects.filter(department=department)
+    return render(request, "q_queues/kiosk.html", {
+        "services": services,
+        "department": department,
+    })
+
 
 
 
@@ -224,12 +239,11 @@ from .models import QueueEntry
 def generate_qr(request, entry_id):
     entry = get_object_or_404(QueueEntry, id=entry_id)
 
-    # ✅ Generate the absolute URL to the ticket page
     ticket_url = request.build_absolute_uri(
         reverse("queue_ticket", args=[entry.id])
     )
 
-    # ✅ Generate QR code from the ticket URL
+    
     qr = qrcode.make(ticket_url)
     buffer = io.BytesIO()
     qr.save(buffer, format="PNG")
@@ -311,3 +325,9 @@ def export_surveys_csv(request):
 
     return response
 
+from django.shortcuts import render
+from .models import Department
+
+def department_selection(request):
+    departments = Department.objects.all()
+    return render(request, "q_queues/department_selection.html", {"departments": departments})

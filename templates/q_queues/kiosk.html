@@ -62,6 +62,16 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="mb-3">
+                 <label class="form-label">Select Department</label>
+                 <select name="department" class="form-select" required>
+                 <option value="">-- Select Department --</option>
+                 {% for dept in departments %}
+                <option value="{{ dept.id }}">{{ dept.name }}</option>
+                 {% endfor %}
+                 </select>
+            </div>
+
 
             <button type="submit" class="btn btn-primary w-100">Get Ticket</button>
         </form>

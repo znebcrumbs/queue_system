@@ -19,6 +19,7 @@ from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from q_queues import views as queue_views
 from q_accounts.views import CentralLoginView
+from q_queues import views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -28,7 +29,7 @@ urlpatterns = [
     path("login/", CentralLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
-    path("", queue_views.kiosk, name="landing"),  
+    path("", views.department_selection, name="department_selection"),  
     path("queues/", include("q_queues.urls")),
 
     # Authentication

@@ -17,3 +17,11 @@ class QueueEntryAdmin(admin.ModelAdmin):
 admin.site.site_header = "Queue Management System Admin"
 admin.site.site_title = "QMS Admin Portal"
 admin.site.index_title = "Welcome to the Queue System Admin"
+
+from django.contrib import admin
+from .models import Department
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)

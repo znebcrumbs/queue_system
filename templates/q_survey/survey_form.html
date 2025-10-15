@@ -45,18 +45,15 @@
             {% csrf_token %}
 
             <div class="mb-3">
-                <label class="form-label">Department/Office you visited</label>
+                <label class="form-label">Select Department</label>
                 <select name="department" class="form-select" required>
-                    <option value="">-- Select --</option>
-                    <option>Registrar</option>
-                    <option>Cashier</option>
-                    <option>Library</option>
-                    <option>Guidance Office</option>
-                    <option>IT/Technical Support</option>
-                    <option>Clinic/Health Services</option>
-                    <option>Other</option>
-                </select>
+                <option value="">-- Select Department --</option>
+                {% for dept in departments %}
+                <option value="{{ dept.id }}">{{ dept.name }}</option>
+            {% endfor %}
+            </select>
             </div>
+
 
             <div class="mb-3">
                 <label class="form-label">Purpose of visit</label>

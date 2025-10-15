@@ -38,6 +38,7 @@
     <div class="ticket" id="ticket-box">
         <h2>Your Queue Ticket</h2>
         <h1 class="display-3">{{ entry.queue_number }}</h1>
+        <p><strong>Department:</strong> {{ entry.department }}</p>
         <p><strong>Service:</strong> {{ entry.service_type.name }}</p>
         <p class="status text-primary" id="status">{{ entry.get_status_display }}</p>
         <img src="{% url 'generate_qr' entry.id %}" alt="QR Code">
