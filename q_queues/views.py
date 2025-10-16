@@ -170,22 +170,24 @@ from .models import Department
 import uuid
 
 from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, render, redirect
+from .models import Department, ServiceType, QueueEntry
+from django.db import IntegrityError, transaction
+import uuid
 
-def kiosk(request):
-    department = get_object_or_404(Department, id=department_id) 
+def kiosk(request, department_slug=None):
+    department = get_object_or_404(Department, slug=department_slug)
+
     if request.method == "POST":
         service_id = request.POST.get("service_type")
-        department_id = request.POST.get("department")
         name = request.POST.get("name")
         mobile = request.POST.get("mobile_number")
         email = request.POST.get("email")
         section = request.POST.get("section")
+        dept_id = request.POST.get("department")
 
-       
+        selected_department = get_object_or_404(Department, id=dept_id)
         service = get_object_or_404(ServiceType, id=service_id)
-        if service.department != department:
-            return JsonResponse({"error": "Invalid service for this department"}, status=400)
-
 
         for _ in range(3):
             try:
@@ -193,7 +195,7 @@ def kiosk(request):
                     queue_number = service.generate_queue_number()
                     entry = QueueEntry.objects.create(
                         service_type=service,
-                        department=department,
+                        department=selected_department,
                         queue_number=queue_number,
                         qr_code_data=str(uuid.uuid4()),
                         name=name,
@@ -207,15 +209,13 @@ def kiosk(request):
 
         return JsonResponse({"error": "Failed to create ticket. Please try again."}, status=500)
 
-    # Filter services by department
     services = ServiceType.objects.filter(department=department)
+    departments = Department.objects.all()
     return render(request, "q_queues/kiosk.html", {
         "services": services,
-        "department": department,
+        "departments": departments,
+        "selected_department": department,
     })
-
-
-
 
 def queue_ticket(request, entry_id):
     entry = get_object_or_404(QueueEntry, pk=entry_id)
