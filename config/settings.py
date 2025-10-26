@@ -68,7 +68,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            BASE_DIR / "templates",  # 👈 this is where you define your global template folder
+            BASE_DIR / "templates", 
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -145,3 +145,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/queues/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+
+
+
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False

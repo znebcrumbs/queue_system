@@ -30,7 +30,8 @@ def create_queue_entry(request):
             queue_number=queue_number,
             qr_code_data=str(uuid.uuid4()),  # pampa unique sa qr 
         )
-
+        entry.save()
+        print_ticket(entry)
         return JsonResponse({
             "id": entry.id,
             "queue_number": entry.queue_number,
@@ -129,7 +130,7 @@ def dashboard(request):
     else:
         # Staff sees only their department
         if not user.department:
-            return redirect("login")
+            return redirect("department_selection")
 
         services = ServiceType.objects.filter(department=user.department)
         entries = QueueEntry.objects.filter(department=user.department).order_by("-created_at")[:10]
@@ -331,3 +332,17 @@ from .models import Department
 def department_selection(request):
     departments = Department.objects.all()
     return render(request, "q_queues/department_selection.html", {"departments": departments})
+
+from escpos.printer import Usb
+from django.template.loader import render_to_string
+
+def print_ticket(entry):
+    html = render_to_string("q_queues/ticket.html", {"entry": entry})
+    printer = Usb(0x04b8, 0x0e15)  # Replace with your printer's vendor ID and product ID
+    printer.text("Queue Ticket\n\n")
+    printer.text(f"Ticket No: {entry.queue_number}\n")
+    printer.text(f"Department: {entry.department.name}\n")
+    printer.text("-------------------------------\n")
+    printer.text("Thank you for waiting!\n\n")
+    printer.cut()
+

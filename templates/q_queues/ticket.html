@@ -35,6 +35,9 @@
     </style>
 </head>
 <body>
+    <div id="printable-ticket">
+  
+
     <div class="ticket" id="ticket-box">
         <h2>Your Queue Ticket</h2>
         <h1 class="display-3">{{ entry.queue_number }}</h1>
@@ -49,7 +52,12 @@
     <a href="{% url 'survey' entry.id %}" class="btn btn-outline-primary">
         Give Feedback
     </a>
-    </div>
+      <!-- your ticket HTML -->
+</div>
+<div class = "text-center mt-4">
+<button class="btn btn-primary" onclick="window.print()" class="btn btn-primary">🖨️ Print Ticket</button>
+</div>    
+</div>
 
     <audio id="ding" src="{% static 'sounds/ding.mp3' %}" preload="auto"></audio>
 
@@ -83,6 +91,11 @@
         }
 
         setInterval(refreshStatus, 2000); 
+      window.onload = () => {
+        if (window.location.search.includes("auto_print=1")) {
+            window.print();
+        }
+    }
     </script>
 </body>
 </html>

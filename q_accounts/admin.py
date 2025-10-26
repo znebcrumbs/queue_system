@@ -5,9 +5,11 @@ from .models import User
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-        ("Role", {"fields": ("role",)}),
+        ("Profile", {"fields": ("role", "department")}),
     )
-    list_display = ("username", "email", "role", "is_staff", "is_superuser")
+    list_display = ("username", "email", "role", "department", "is_staff", "is_superuser")
+    list_filter = ("role", "is_staff", "is_superuser", "department")
+    search_fields = ("username", "email")
 from django.contrib import admin
 
 admin.site.site_header = "Queue Management System Admin"
