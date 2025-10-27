@@ -48,7 +48,7 @@
         {% if user.is_authenticated %}
             <a href="{% url 'reports_dashboard' %}" class="btn btn-outline-dark btn-sm fw-semibold">Reports</a>
 
-            {% if user.role == "ADMIN" %}
+            {% if user.role == "Administrator" or "admin" %}
                 <a href="{% url 'admin:index' %}" class="btn btn-outline-dark btn-sm fw-semibold">Admin Dashboard</a>
             {% endif %}
 

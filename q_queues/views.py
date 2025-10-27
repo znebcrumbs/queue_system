@@ -57,7 +57,7 @@ from django.contrib.auth.decorators import login_required
 def queue_list(request):
     user = request.user
 
-    if user.role == "ADMIN":
+    if user.role == "Administrator":
         entries = QueueEntry.objects.exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
     else:
         entries = QueueEntry.objects.filter(
@@ -65,7 +65,7 @@ def queue_list(request):
         ).exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
 
     served_entries = QueueEntry.objects.filter(
-        department=user.department if user.role != "ADMIN" else None,
+        department=user.department if user.role != "Administrator" or "admin" else None,
         status=QueueEntry.Status.SERVED
     ).order_by("-served_at")[:2]
 

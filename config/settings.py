@@ -25,6 +25,13 @@ SECRET_KEY = 'django-insecure-!1+jx#1__l!8i8h54-p&jn^^@50#jqz(8j5ovb30chkv9kc))#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000', 'http://localhost:8000']
+
 ALLOWED_HOSTS = []
 
 
@@ -68,7 +75,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            BASE_DIR / "templates", 
+            BASE_DIR / "templates",  # 👈 this is where you define your global template folder
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -93,8 +100,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'queue_system',       # database name you created
-        'USER': 'queue_admin',        # postgres role you created
-        'PASSWORD': 'admin',          # password you assigned
+        'USER': 'postgres',        # postgres role you created
+        'PASSWORD': 'kimkim',          # password you assigned
         'HOST': 'localhost',          # since it's running locally
         'PORT': '5432',               # default postgres port
     }
@@ -132,6 +139,7 @@ USE_I18N = True
 USE_TZ = True
 
 
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
@@ -145,9 +153,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/queues/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-
-
-
-CSRF_COOKIE_SECURE = False
-SESSION_COOKIE_SECURE = False
