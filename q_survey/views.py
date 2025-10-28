@@ -23,6 +23,7 @@ def submit_survey(request):
     queue_id = data.get("queue_entry")
     rating = data.get("rating")
     feedback = data.get("feedback", "")
+    department = data.get("department")
 
     try:
         queue_entry = QueueEntry.objects.get(id=queue_id)
@@ -33,11 +34,12 @@ def submit_survey(request):
         return JsonResponse({"error": "Rating must be 1–5"}, status=400)
 
     survey = SurveyResponse.objects.create(
-        user=queue_entry.client,
+        user="Anon",
         service_type=queue_entry.service_type,
         queues_entry=queue_entry,
         rating=rating,
         feedback=feedback,
+        department=department
     )
 
     return JsonResponse({
@@ -53,7 +55,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .models import SurveyResponse
-from q_queues.models import QueueEntry
+from q_queues.models import QueueEntry 
+from q_queues.models import Department
 
 @login_required
 def survey_view(request, entry_id):

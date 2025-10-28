@@ -101,7 +101,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'queue_system',       # database name you created
         'USER': 'postgres',        # postgres role you created
-        'PASSWORD': 'kimkim',          # password you assigned
+        'PASSWORD': 'markbencel',          # password you assigned
         'HOST': 'localhost',          # since it's running locally
         'PORT': '5432',               # default postgres port
     }
