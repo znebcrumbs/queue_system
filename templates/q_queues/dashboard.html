@@ -164,24 +164,72 @@
     }
 
     // CALL NEXT BUTTON
-    $("#callNextBtn").click(function() {
-        const firstRow = $("#queue-table tbody tr").first();
-        const id = firstRow.data("id");
+$("#callNextBtn").click(function () {
+    const firstRow = $("#queue-table tbody tr").first();
+    const id = firstRow.data("id");
 
-        if (!id) return;
+    if (!id) return;
 
-        $.post(`/queues/update/${id}/?status=SERVING`, {
-            csrfmiddlewaretoken: "{{ csrf_token }}"
-        }, function() {
+    $.ajax({
+        url: `/queues/update/${id}/`,
+        method: "POST",
+        data: {
+            csrfmiddlewaretoken: "{{ csrf_token }}",
+            status: "SERVING",
+        },
+        success: function () {
             refreshQueue();
+        },
+    });
+});
+
+function confirmAction(id, status) {
+    $("#modalMessage").text(`Are you sure you want to mark as ${status}?`);
+    $("#confirmBtn").off("click");
+
+    $("#confirmBtn").on("click", function () {
+        $.ajax({
+            url: `/queues/update/${id}/`,
+            method: "POST",
+            data: {
+                csrfmiddlewaretoken: "{{ csrf_token }}",
+                status: status,
+            },
+            success: function () {
+                $("#confirmModal").modal("hide");
+                refreshQueue();
+            }
         });
     });
+
+    $("#confirmModal").modal("show");
+}
+
+
 
     $(document).ready(function() {
         refreshQueue();
         setInterval(refreshQueue, 5000);
     });
 </script>
+<!-- CONFIRMATION MODAL -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Confirm Action</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="modalMessage">Are you sure?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="confirmBtn" class="btn btn-danger">Yes, Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
