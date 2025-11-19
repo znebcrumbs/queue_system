@@ -52,13 +52,11 @@ def submit_survey(request):
     }, status=201)
 
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .models import SurveyResponse
 from q_queues.models import QueueEntry 
 from q_queues.models import Department
 
-@login_required
 def survey_view(request, entry_id):
     entry = get_object_or_404(QueueEntry, id=entry_id)
 

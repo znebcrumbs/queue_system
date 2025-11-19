@@ -29,8 +29,10 @@ urlpatterns = [
     path("login/", CentralLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
-    path("", views.department_selection, name="department_selection"),  
-    path("queues/", include("q_queues.urls")),
+    path('', views.department_selection, name='department_selection'),
+    path('kiosk/<int:department_id>/', views.kiosk, name='kiosk_with_department'),
+    path("admin/reports/", views.admin_reports_dashboard, name="admin_reports_dashboard"),
+
 
     # Authentication
    # path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),

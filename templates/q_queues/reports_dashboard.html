@@ -16,6 +16,10 @@
     </a>
 </div>
 
+{% if user.is_superuser %}
+  <a href="{% url 'export_queues_csv' %}" class="btn btn-sm btn-outline-primary">Export Queues CSV</a>
+  <a href="{% url 'export_surveys_csv' %}" class="btn btn-sm btn-outline-secondary">Export Surveys CSV</a>
+{% endif %}
 
     <div class="row g-4">
         <div class="col-md-4">

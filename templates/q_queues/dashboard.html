@@ -2,35 +2,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Queue Dashboard</title>
+    <title>Staff Panel</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
     <style>
         body {
             background-color: #f8fbff;
-            color: #1a2b4c; 
+            color: #1a2b4c;
         }
-        .navbar-custom {
-            background: linear-gradient(90deg, #0d6efd, #1e90ff);
-        }
-        .navbar-custom h1, .navbar-custom a, .navbar-custom button {
-            color: #fff !important;
-        }
-        .card {
+        .panel-card {
             border-radius: 1rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 2rem;
+            background: #fff;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.06);
         }
-        .card-header {
-            background-color: #0d6efd;
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .now-serving-box,
+        .next-queue-box {
+            padding: 2rem;
+            border-radius: 1rem;
+            background-color: #f4f9ff;
+            text-align: center;
+            border: 2px dashed #bcd8ff;
+        }
+        .queue-number-big {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+        }
+        .btn-call-next {
+            background: #1e90ff;
             color: #fff;
-            font-weight: 500;
+            font-weight: 600;
         }
-        .list-group-item {
-            border: none;
-            border-bottom: 1px solid #e9f1ff;
+        .btn-call-next:hover {
+            background: #1472d4;
         }
-        .list-group-item:last-child {
-            border-bottom: none;
+        .action-btn {
+            border-radius: 50px;
+            padding: 4px 16px;
+            font-size: 0.85rem;
         }
         .highlight {
             animation: flash 1s ease-in-out;
@@ -41,115 +58,130 @@
         }
     </style>
 </head>
-<body class="container-fluid py-4">
-   <div class="navbar navbar-custom rounded-3 px-4 py-3 mb-4 d-flex justify-content-between align-items-center">
-    <h1 class="h3 mb-0">Queue Kiosk</h1>
-    <div class="d-flex align-items-center gap-2">
-        {% if user.is_authenticated %}
-            <a href="{% url 'reports_dashboard' %}" class="btn btn-outline-dark btn-sm fw-semibold">Reports</a>
 
-            {% if user.role == "Administrator" or "admin" %}
-                <a href="{% url 'admin:index' %}" class="btn btn-outline-dark btn-sm fw-semibold">Admin Dashboard</a>
+<body class="container py-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="fw-bold">Staff Panel</h1>
+
+        <div class="d-flex gap-2">
+
+            <a href="{% url 'reports_dashboard' %}" class="btn btn-outline-primary btn-sm">
+                Reports
+            </a>
+
+            {% if user.is_superuser %}
+            <a href="/admin/" class="btn btn-outline-dark btn-sm">
+                Admin Dashboard
+            </a>
             {% endif %}
 
-            <form method="post" action="{% url 'logout' %}" class="d-inline">
+            <form action="{% url 'logout' %}" method="post">
                 {% csrf_token %}
-                <button class="btn btn-danger btn-sm fw-semibold" type="submit">Logout</button>
+                <button class="btn btn-danger btn-sm">Logout</button>
             </form>
-        {% else %}
-            <a href="{% url 'login' %}" class="btn btn-light btn-sm fw-semibold">Staff Login</a>
-        {% endif %}
+        </div>
     </div>
-</div>
 
-
+    <!-- TOP ROW: NOW SERVING + NEXT IN QUEUE -->
     <div class="row g-4">
+
+        <!-- NOW SERVING -->
         <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">Service Types</div>
-                <ul class="list-group list-group-flush">
-                    {% for service in services %}
-                        <li class="list-group-item">{{ service.name }} — {{ service.description }}</li>
-                    {% empty %}
-                        <li class="list-group-item">No service types defined yet.</li>
-                    {% endfor %}
-                </ul>
+            <div class="panel-card">
+                <div class="section-title">Now Serving</div>
+
+                <div id="now-serving" class="now-serving-box">
+                    <div>Waiting for client to be called...</div>
+                    <div class="queue-number-big">--</div>
+                </div>
             </div>
         </div>
 
+        <!-- NEXT IN QUEUE -->
         <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">Recent Queue Entries</div>
-                <div class="card-body" id="queue-table">
-                    {% include "q_queues/partials/queue_table.html" %}
+            <div class="panel-card">
+                <div class="section-title">Next in Queue</div>
+
+                <div id="next-queue" class="next-queue-box">
+                    <div class="text-muted mb-2">Next in queue</div>
+                    <div class="queue-number-big" id="next-queue-number">--</div>
+
+                    <button id="callNextBtn" class="btn btn-call-next mt-3">
+                        ▶ Call Next
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card mt-4">
-        <div class="card-header">Now Serving</div>
-        <div class="card-body text-center fs-4 fw-bold" id="now-serving">
-            <div>---</div>
+    <!-- ACTIVE QUEUE LIST -->
+    <div class="panel-card mt-4">
+        <div class="section-title">Active Queue List</div>
+
+        <div id="queue-table">
+            {% include "q_queues/partials/queue_table.html" %}
         </div>
     </div>
 
     <audio id="ding" src="{% static 'sounds/ding.mp3' %}" preload="auto"></audio>
 
 <script>
-    // last served 
     let lastServed = [];
-    // last latest_id. dihens mo nasabatan? louy
     let lastLatestId = null;
 
     function refreshQueue() {
         $.get("{% url 'queue_list' %}", function(data) {
-            // Replace table 
+
             $("#queue-table").html(data.html);
 
-            // Update Now Serving sa Jollibee ineng hehehehe
             const served = data.served || [];
 
+            // NOW SERVING PANEL
             if (served.length > 0) {
-                const nowHtml = served.slice(0,2).map(n => `<div>${n}</div>`).join("");
-                $("#now-serving").html(nowHtml);
+                $("#now-serving").html(`
+                    <div class="text-muted">Now Serving</div>
+                    <div class="queue-number-big">${served[0]}</div>
+                `);
 
-                // Play ding ONLY if top served changed 
                 if (lastServed.length && served[0] !== lastServed[0]) {
                     const audio = document.getElementById("ding");
-                    // try/catch kay i miss her
-                    try { audio.play(); } catch(e) { /* block autoplay boss */ }
+                    try { audio.play(); } catch(e) {}
 
-                    // highlight kay naa na syay lain.
-                    $("#now-serving div:first").addClass("highlight");
-                    setTimeout(() => $("#now-serving div:first").removeClass("highlight"), 1200);
+                    $(".queue-number-big").addClass("highlight");
+                    setTimeout(() => $(".queue-number-big").removeClass("highlight"), 1200);
                 }
-            } else {
-                $("#now-serving").html("<div>---</div>");
             }
 
-            // update snapshots pero basin naa kay snapchat
+            // NEXT IN QUEUE
+            const nextClient = $("#queue-table tbody tr").first().data("number");
+            $("#next-queue-number").text(nextClient || "--");
+
             lastServed = served;
             lastLatestId = data.latest_id;
-        }).fail(function() {
-            //  handle errors (if daot ang server huhuh)
-            console.warn("Failed to refresh queue list");
         });
     }
 
-    // lastServed from the server-rendered panel on load (if present pero ug absent ah edi no)
-    $(document).ready(function() {
-        $("#now-serving div").each(function() {
-            const t = $(this).text().trim();
-            if (t) lastServed.push(t);
-        });
-        // initialize lastLatestId from first table row in case dili ta mag work
-        const firstRow = $("#queue-table tbody tr[data-id]:first");
-        if (firstRow.length) lastLatestId = firstRow.data("id");
+    // CALL NEXT BUTTON
+    $("#callNextBtn").click(function() {
+        const firstRow = $("#queue-table tbody tr").first();
+        const id = firstRow.data("id");
 
-        // dapat i update ko nimo every 5 seconds
+        if (!id) return;
+
+        $.post(`/queues/update/${id}/?status=SERVING`, {
+            csrfmiddlewaretoken: "{{ csrf_token }}"
+        }, function() {
+            refreshQueue();
+        });
+    });
+
+    $(document).ready(function() {
+        refreshQueue();
         setInterval(refreshQueue, 5000);
     });
 </script>
+
 </body>
 </html>

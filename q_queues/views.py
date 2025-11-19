@@ -177,8 +177,9 @@ from django.db import IntegrityError, transaction
 import uuid
 
 def kiosk(request, department_slug=None):
-    department = get_object_or_404(Department, slug=department_slug)
-
+    department = None
+    if department_slug:
+        department = get_object_or_404(Department, name=department_slug)
     if request.method == "POST":
         service_id = request.POST.get("service_type")
         name = request.POST.get("name")
@@ -187,7 +188,7 @@ def kiosk(request, department_slug=None):
         section = request.POST.get("section")
         dept_id = request.POST.get("department")
 
-        selected_department = get_object_or_404(Department, id=dept_id)
+        selected_department = get_object_or_404(Department, name=department_slug)
         service = get_object_or_404(ServiceType, id=service_id)
 
         for _ in range(3):
@@ -220,12 +221,31 @@ def kiosk(request, department_slug=None):
 
 def queue_ticket(request, entry_id):
     entry = get_object_or_404(QueueEntry, pk=entry_id)
-
+    
     # If AJAX request, return just status para sure kay galibog na ko
+   
     if request.GET.get("ajax"):
         return JsonResponse({"status": entry.get_status_display()})
 
     return render(request, "q_queues/ticket.html", {"entry": entry})
+
+def get_serving(request, entry_id):
+    entry = get_object_or_404(QueueEntry, pk=entry_id)
+    now_serving = QueueEntry.objects.filter(
+        department=entry.department, status=QueueEntry.Status.SERVED
+    ).order_by('-served_at')[:2]  # or filter status="SERVING" if you have such state
+    return render(request, "q_queues/ticket.html", {"entry": entry, "now_serving": now_serving})
+
+@login_required
+def now_serving_list(request, department_id=None):
+    qs = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED)
+    if not request.user.is_superuser:
+        qs = qs.filter(department=request.user.department)
+    elif department_id:
+        qs = qs.filter(department_id=department_id)
+    now_list = qs.order_by('-served_at')[:20]
+    return render(request, "q_queues/now_serving.html", {"now_list": now_list})
+
 
 
 import io
@@ -272,14 +292,31 @@ def reports_dashboard(request):
     }
     return render(request, "q_queues/reports_dashboard.html", context)
 
+# q_queues/views.py
+from django.contrib.admin.views.decorators import staff_member_required
+
+@staff_member_required
+def admin_reports_dashboard(request):
+    total_queues = QueueEntry.objects.count()
+    served_queues = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).count()
+    avg_rating = SurveyResponse.objects.all().aggregate(models.Avg("rating"))["rating__avg"] or 0
+    recent_feedbacks = SurveyResponse.objects.order_by("-created_at")[:5]
+    return reports_dashboard(request)
+
+
 import csv
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from .models import QueueEntry
 
 @login_required
-def export_queues_csv(request):
-    # Create the HTTP response with CSV headers
+def export_queues_csv(request, department_id=None):
+    if not request.user.is_superuser and department_id and request.user.department_id != int(department_id):
+        return HttpResponse(status=403)
+    qs = QueueEntry.objects.all().order_by('-created_at')
+    if department_id:
+        qs = qs.filter(department_id=department_id)
+    # rest of CSV writer as before...
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="queue_report.csv"'
 
@@ -330,15 +367,16 @@ from django.shortcuts import render
 from .models import Department
 
 def department_selection(request):
-    departments = Department.objects.all()
-    return render(request, "q_queues/department_selection.html", {"departments": departments})
+    depts = Department.objects.all()
+    return render(request, "q_queues/department_selection.html", {"departments": depts})
+
 
 from escpos.printer import Usb
 from django.template.loader import render_to_string
 
 def print_ticket(entry):
     html = render_to_string("q_queues/ticket.html", {"entry": entry})
-    printer = Usb(0x04b8, 0x0e15)  # Replace with your printer's vendor ID and product ID
+    printer = Usb(0x04b8, 0x0e15)  # para as printer
     printer.text("Queue Ticket\n\n")
     printer.text(f"Ticket No: {entry.queue_number}\n")
     printer.text(f"Department: {entry.department.name}\n")
