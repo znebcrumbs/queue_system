@@ -246,7 +246,12 @@ def now_serving_list(request, department_id=None):
     now_list = qs.order_by('-served_at')[:20]
     return render(request, "q_queues/now_serving.html", {"now_list": now_list})
 
-
+def get_waiting(request, entry_id):
+    entry = get_object_or_404(QueueEntry, pk=entry_id)
+    now_waiting = QueueEntry.objects.filter(
+        department=entry.department, status=QueueEntry.Status.WAITING
+    ).order_by('-created_at')[:2]  # or filter status="SERVING" if you have such state
+    return render(request, "q_queues/ticket.html", {"entry": entry, "now_waiting": now_waiting})
 
 import io
 import qrcode

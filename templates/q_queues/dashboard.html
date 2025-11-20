@@ -106,10 +106,19 @@
 
                 <div id="next-queue" class="next-queue-box">
                     <div class="text-muted mb-2">Next in queue</div>
-                    <div class="queue-number-big" id="next-queue-number">--</div>
+                    {% if now_serving %}
+                    <tr class="table-success fw-bold">
+                        <td>{{ now_serving.queue_number }}</td>
+                        <td>{{ now_serving.service_type.name }}</td>
+                        <td>{{ now_serving.department.name }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="text-center">No active serving</td></tr>
+                    {% endif %}
 
-                    <button id="callNextBtn" class="btn btn-call-next mt-3">
-                        ▶ Call Next
+
+                    <button id="callNextBtn" class="btn btn-call-next mt-3"
+                         onclick="confirmCallNext()">▶ Call Next</button>
                     </button>
                 </div>
             </div>
@@ -162,6 +171,40 @@
             lastLatestId = data.latest_id;
         });
     }
+    // EVENT DELEGATION (works even after AJAX)
+$(document).on("click", ".queue-action", function () {
+    const id = $(this).data("id");
+    const status = $(this).data("status");
+    confirmAction(id, status);
+});
+
+function confirmCallNext() {
+    const nextId = $("#queue-table tbody tr").first().data("id");
+    if (!nextId) {
+        alert("No clients in queue.");
+        return;
+    }
+
+    $("#modalMessage").text(`Call next client?`);
+    $("#confirmBtn").off("click");
+
+    $("#confirmBtn").on("click", function () {
+        $.ajax({
+            url: `/queues/update/${nextId}/`,
+            method: "POST",
+            data: {
+                csrfmiddlewaretoken: "{{ csrf_token }}",
+                status: "SERVING",
+            },
+            success: function () {
+                $("#confirmModal").modal("hide");
+                refreshQueue();
+            }
+        });
+    });
+
+    $("#confirmModal").modal("show");
+}
 
     // CALL NEXT BUTTON
 $("#callNextBtn").click(function () {
@@ -175,7 +218,7 @@ $("#callNextBtn").click(function () {
         method: "POST",
         data: {
             csrfmiddlewaretoken: "{{ csrf_token }}",
-            status: "SERVING",
+            status: "SERVED",
         },
         success: function () {
             refreshQueue();

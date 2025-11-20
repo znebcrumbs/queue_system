@@ -9,46 +9,80 @@
             <th scope="col" class="text-center">Action</th>
         </tr>
     </thead>
-
+    
     <tbody>
-{% for entry in entries %}
-    <tr 
-        data-id="{{ entry.id }}" 
-        data-number="{{ entry.queue_number }}" 
-        data-status="{{ entry.status }}"
-    >
-        <td class="q-number fw-bold text-primary">{{ entry.queue_number }}</td>
-        <td>{{ entry.service_type.name }}</td>
-        <td class="q-status">
-            {% if entry.status == "SERVED" %}
-                <span class="badge bg-success">{{ entry.get_status_display }}</span>
-            {% elif entry.status == "RETURNED" %}
-                <span class="badge bg-warning text-dark">{{ entry.get_status_display }}</span>
-            {% elif entry.status == "CANCELLED" %}
-                <span class="badge bg-danger">{{ entry.get_status_display }}</span>
-            {% else %}
-                <span class="badge bg-secondary">{{ entry.get_status_display }}</span>
-            {% endif %}
-        </td>
-        <td>{{ entry.created_at|date:"H:i:s" }}</td>
+        {% for entry in entries %}
+            <tr data-id="{{ entry.id }}" data-status="{{ entry.status }}">
+                <td class="q-number fw-bold text-primary">{{ entry.queue_number }}</td>
+                <td>{{ entry.service_type.name }}</td>
+                <td class="q-status">
+                    {% if entry.status == "SERVED" %}
+                        <span class="badge bg-success">{{ entry.get_status_display }}</span>
+                    {% elif entry.status == "RETURNED" %}
+                        <span class="badge bg-warning text-dark">{{ entry.get_status_display }}</span>
+                    {% elif entry.status == "CANCELLED" %}
+                        <span class="badge bg-danger">{{ entry.get_status_display }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ entry.get_status_display }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ entry.created_at|date:"H:i:s" }}</td>
+                <td class="text-center">
+                    <form method="post" action="{% url 'update_queue_entry' entry.id %}" class="d-inline confirm-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="SERVED">
+                        <button type="submit" class="btn btn-outline-success btn-sm">Serve</button>
+                    </form>
+                    <form method="post" action="{% url 'update_queue_entry' entry.id %}" class="d-inline confirm-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="RETURNED">
+                        <button type="submit" class="btn btn-outline-warning btn-sm">Return</button>
+                    </form>
+                    <form method="post" action="{% url 'update_queue_entry' entry.id %}" class="d-inline confirm-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="CANCELLED">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Cancel</button>
+                    </form>
+                </td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">No entries yet.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Action</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="modalMessage">Are you sure?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="confirmBtn" class="btn btn-danger">Yes, Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+    let formToSubmit = null;
 
-        <!-- ACTION BUTTONS -->
-        <td class="text-center">
-            <button class="btn btn-success btn-sm action-btn" 
-                onclick="confirmAction('{{ entry.id }}', 'SERVED')">Serve</button>
+$(document).on("submit", ".confirm-form", function (e) {
+    e.preventDefault();  // stop form submit
+    formToSubmit = this; // store reference
+    const status = $(this).find("input[name='status']").val();
+    $("#modalMessage").text(`Are you sure you want to mark this as ${status}?`);
+    $("#confirmModal").modal("show");
+});
 
-            <button class="btn btn-warning btn-sm action-btn" 
-                onclick="confirmAction('{{ entry.id }}', 'RETURNED')">Return</button>
+// When user clicks YES
+$("#confirmBtn").click(function () {
+    if (formToSubmit) formToSubmit.submit();
+});
 
-            <button class="btn btn-danger btn-sm action-btn" 
-                onclick="confirmAction('{{ entry.id }}', 'CANCELLED')">Cancel</button>
-        </td>
-    </tr>
-{% empty %}
-    <tr>
-        <td colspan="5" class="text-center text-muted py-4">No entries yet.</td>
-    </tr>
-{% endfor %}
-</tbody>
-
+</script>
 </table>

@@ -17,7 +17,7 @@
   }
   @media print {
       .now-serving table { font-size: 12px; }
-  }
+  } 
         .ticket {
             max-width: 400px;
             margin: 50px auto;
@@ -72,7 +72,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for s in now_serving %}
+        {% for s in now_waiting %}
           <tr class="now-row {% if forloop.first %}table-success fw-bold{% endif %}">
             <td>{{ s.queue_number }}</td>
             <td>{{ s.service_type.name }}</td>
