@@ -23,5 +23,6 @@ from .models import Department
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "max_entries_per_day")
     search_fields = ("name",)
+    fields = ("name", "slug", "description", "max_entries_per_day")

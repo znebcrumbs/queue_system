@@ -7,6 +7,7 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"), #html
     path("create/", views.create_queue_entry, name="create_queue_entry"),
     path("list/", views.queue_list, name="queue_list"),
+    path("current-served/", views.get_current_served, name="get_current_served"),
     path("update/<int:entry_id>/", views.update_queue_entry, name="update_queue_entry"),
     path("kiosk/", views.kiosk, name="kiosk"),
     path("ticket/<int:entry_id>/", views.queue_ticket, name="queue_ticket"), #html

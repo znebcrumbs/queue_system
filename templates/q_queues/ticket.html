@@ -60,9 +60,9 @@
     </div>
   <!-- Improved NOW SERVING Section -->
 <div class="now-serving mt-4">
-  <h4 class="text-center fw-bold text-primary">🛎️ Now Serving</h4>
+  <h4 class="text-center fw-bold text-primary">🛎️ Next In Queue</h4>
 
-  {% if now_serving %}
+    {% if now_waiting %}
     <table class="table table-sm table-bordered text-center align-middle">
       <thead>
         <tr>
@@ -72,7 +72,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for s in now_waiting %}
+                {% for s in now_waiting %}
           <tr class="now-row {% if forloop.first %}table-success fw-bold{% endif %}">
             <td>{{ s.queue_number }}</td>
             <td>{{ s.service_type.name }}</td>
@@ -135,6 +135,23 @@
     document.getElementById('printTicketBtn').addEventListener('click', function(){
   window.print(); // prints ticket page
 });
+ if (served.length > 0) {
+                $("#now-serving").html(`
+                    <div class="text-muted">Now Serving</div>
+                    <div class="queue-number-big">${served[0]}</div>
+                `);
+
+                if (lastServed.length && served[0] !== lastServed[0]) {
+                    const audio = document.getElementById("ding");
+                    if (audio && typeof audio.play === 'function') {
+                        // play() returns a promise — handle rejection (autoplay policies, unsupported sources)
+                        audio.play().catch(() => {});
+                    }
+
+                    $(".queue-number-big").addClass("highlight");
+                    setTimeout(() => $(".queue-number-big").removeClass("highlight"), 1200);
+                }
+            }
     </script>
 </body>
 </html>

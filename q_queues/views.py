@@ -16,6 +16,16 @@ def create_queue_entry(request):
 
         service_type = get_object_or_404(ServiceType, id=service_type_id)
 
+        # enforce per-department daily capacity if configured
+        dept = getattr(service_type, "department", None)
+        if dept and getattr(dept, "max_entries_per_day", 0) > 0:
+            dept_count = QueueEntry.objects.filter(
+                department=dept,
+                created_at__date=timezone.now().date()
+            ).count()
+            if dept_count >= dept.max_entries_per_day:
+                return JsonResponse({"error": "Department capacity reached for today."}, status=429)
+
         # generate number (e.g., ST-001), if guba ang ticket icheck ni
         count_today = QueueEntry.objects.filter(
             service_type=service_type,
@@ -27,6 +37,7 @@ def create_queue_entry(request):
         # create entry sa ano
         entry = QueueEntry.objects.create(
             service_type=service_type,
+            department=dept,
             queue_number=queue_number,
             qr_code_data=str(uuid.uuid4()),  # pampa unique sa qr 
         )
@@ -119,6 +130,41 @@ from django.shortcuts import render
 from .models import QueueEntry, ServiceType
 
 @login_required
+def get_current_served(request):
+    """Return HTML snippet for the currently served ticket info box."""
+    user = request.user
+    
+    # Get the most recently served entry for the user's department
+    if user.role == "ADMIN":
+        # Admin sees the most recent served across all departments
+        currently_served = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at").first()
+    else:
+        # Staff sees only the most recent served in their department
+        if not user.department:
+            currently_served = None
+        else:
+            currently_served = QueueEntry.objects.filter(
+                department=user.department,
+                status=QueueEntry.Status.SERVED
+            ).order_by("-served_at").first()
+    
+    if currently_served:
+        html = f"""<div class="text-muted mb-2">Currently Being Served</div>
+<div class="queue-number-big text-success">{currently_served.queue_number}</div>
+<div class="mt-3">
+    <p><strong>Service:</strong> {currently_served.service_type.name}</p>
+    <p><strong>Department:</strong> {currently_served.department.name}</p>
+    <p><strong>Client Name:</strong> {currently_served.name or 'N/A'}</p>
+    <p><strong>Mobile:</strong> {currently_served.mobile_number or 'N/A'}</p>
+    <p><strong>Email:</strong> {currently_served.email or 'N/A'}</p>
+</div>"""
+    else:
+        html = '<div class="text-muted text-center">No ticket currently being served</div>'
+    
+    return JsonResponse({"html": html}, safe=False)
+
+
+@login_required
 def dashboard(request):
     user = request.user
 
@@ -127,6 +173,7 @@ def dashboard(request):
         services = ServiceType.objects.all()
         entries = QueueEntry.objects.select_related("department").order_by("-created_at")[:10]
         served_entries = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at")[:2]
+        currently_served = QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by("-served_at").first()
     else:
         # Staff sees only their department
         if not user.department:
@@ -138,11 +185,16 @@ def dashboard(request):
             department=user.department,
             status=QueueEntry.Status.SERVED
         ).order_by("-served_at")[:2]
+        currently_served = QueueEntry.objects.filter(
+            department=user.department,
+            status=QueueEntry.Status.SERVED
+        ).order_by("-served_at").first()
 
     return render(request, "q_queues/dashboard.html", {
         "services": services,
         "entries": entries,
         "served_entries": served_entries,
+        "currently_served": currently_served,
     })
 
 
@@ -191,6 +243,22 @@ def kiosk(request, department_slug=None):
         selected_department = get_object_or_404(Department, name=department_slug)
         service = get_object_or_404(ServiceType, id=service_id)
 
+        # enforce per-department daily capacity if configured
+        if selected_department and getattr(selected_department, "max_entries_per_day", 0) > 0:
+            today_count = QueueEntry.objects.filter(
+                department=selected_department,
+                created_at__date=timezone.now().date()
+            ).count()
+            if today_count >= selected_department.max_entries_per_day:
+                services = ServiceType.objects.filter(department=selected_department)
+                departments = Department.objects.all()
+                return render(request, "q_queues/kiosk.html", {
+                    "services": services,
+                    "departments": departments,
+                    "selected_department": selected_department,
+                    "error": "Department capacity reached for today.",
+                })
+
         for _ in range(3):
             try:
                 with transaction.atomic():
@@ -227,7 +295,13 @@ def queue_ticket(request, entry_id):
     if request.GET.get("ajax"):
         return JsonResponse({"status": entry.get_status_display()})
 
-    return render(request, "q_queues/ticket.html", {"entry": entry})
+    # include the next 2 waiting entries for the ticket display
+    now_waiting = QueueEntry.objects.filter(
+        department=entry.department,
+        status=QueueEntry.Status.WAITING
+    ).order_by('-created_at')[:2]
+
+    return render(request, "q_queues/ticket.html", {"entry": entry, "now_waiting": now_waiting})
 
 def get_serving(request, entry_id):
     entry = get_object_or_404(QueueEntry, pk=entry_id)
@@ -370,22 +444,61 @@ def export_surveys_csv(request):
 
 from django.shortcuts import render
 from .models import Department
+from django.db.models import Count, Q
+from datetime import timedelta
+
+
 
 def department_selection(request):
-    depts = Department.objects.all()
-    return render(request, "q_queues/department_selection.html", {"departments": depts})
+    departments = Department.objects.all()
+    for dept in departments:
+        # Get currently serving entry (status SERVED, most recent)
+        serving = QueueEntry.objects.filter(
+            department=dept,
+            status=QueueEntry.Status.SERVED
+        ).order_by('-served_at').first()
+
+        serving_time = None
+        if serving and serving.served_at:
+            time_diff = timezone.now() - serving.served_at
+            serving_time = str(time_diff).split('.')[0]  # HH:MM:SS format
+
+        # Count remaining waiting clients
+        remaining_count = QueueEntry.objects.filter(
+            department=dept,
+            status=QueueEntry.Status.WAITING
+        ).count()
+
+        # attach attributes directly so template can access them on the object
+        setattr(dept, "serving_time", serving_time)
+        setattr(dept, "remaining_clients", remaining_count)
+        setattr(dept, "currently_served", serving)
+
+    return render(request, "q_queues/department_selection.html", {"departments": departments})
 
 
-from escpos.printer import Usb
+
+try:
+    from escpos.printer import Usb
+except Exception:
+    Usb = None
+
 from django.template.loader import render_to_string
 
 def print_ticket(entry):
     html = render_to_string("q_queues/ticket.html", {"entry": entry})
-    printer = Usb(0x04b8, 0x0e15)  # para as printer
-    printer.text("Queue Ticket\n\n")
-    printer.text(f"Ticket No: {entry.queue_number}\n")
-    printer.text(f"Department: {entry.department.name}\n")
-    printer.text("-------------------------------\n")
-    printer.text("Thank you for waiting!\n\n")
-    printer.cut()
+    if Usb is None:
+        # escpos not available in this environment (e.g., CI or missing dependency)
+        return
+    try:
+        printer = Usb(0x04b8, 0x0e15)  # para as printer
+        printer.text("Queue Ticket\n\n")
+        printer.text(f"Ticket No: {entry.queue_number}\n")
+        printer.text(f"Department: {entry.department.name}\n")
+        printer.text("-------------------------------\n")
+        printer.text("Thank you for waiting!\n\n")
+        printer.cut()
+    except Exception:
+        # printer failures shouldn't kill request flow; swallow or log in future
+        pass
 

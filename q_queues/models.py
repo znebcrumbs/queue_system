@@ -42,6 +42,9 @@ class Department(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     slug = models.SlugField(max_length=100, unique=True)    
+    # Maximum queue entries that this department will accept per day.
+    # A value of 0 means no limit.
+    max_entries_per_day = models.PositiveIntegerField(default=0, help_text="Maximum tickets per day (0 = unlimited)")
 
     def save(self, *args, **kwargs):
         if not self.slug:

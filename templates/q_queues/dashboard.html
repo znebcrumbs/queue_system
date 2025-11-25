@@ -85,11 +85,11 @@
         </div>
     </div>
 
-    <!-- TOP ROW: NOW SERVING + NEXT IN QUEUE -->
+    <!-- TOP ROW: NOW SERVING + NEXT IN QUEUE + CURRENT TICKET INFO -->
     <div class="row g-4">
 
         <!-- NOW SERVING -->
-        <div class="col-lg-6">
+        <div class="col-lg-4">
             <div class="panel-card">
                 <div class="section-title">Now Serving</div>
 
@@ -101,7 +101,7 @@
         </div>
 
         <!-- NEXT IN QUEUE -->
-        <div class="col-lg-6">
+        <div class="col-lg-4">
             <div class="panel-card">
                 <div class="section-title">Next in Queue</div>
 
@@ -119,6 +119,29 @@
 
 
                     <button id="callNextBtn" class="btn btn-call-next mt-3">▶ Call Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CURRENT TICKET INFO -->
+        <div class="col-lg-4">
+            <div class="panel-card">
+                <div class="section-title">Current Ticket Info</div>
+
+                <div class="next-queue-box">
+                    {% if currently_served %}
+                        <div class="text-muted mb-2">Currently Being Served</div>
+                        <div class="queue-number-big text-success">{{ currently_served.queue_number }}</div>
+                        <div class="mt-3">
+                            <p><strong>Service:</strong> {{ currently_served.service_type.name }}</p>
+                            <p><strong>Department:</strong> {{ currently_served.department.name }}</p>
+                            <p><strong>Client Name:</strong> {{ currently_served.name|default:"N/A" }}</p>
+                            <p><strong>Mobile:</strong> {{ currently_served.mobile_number|default:"N/A" }}</p>
+                            <p><strong>Email:</strong> {{ currently_served.email|default:"N/A" }}</p>
+                        </div>
+                    {% else %}
+                        <div class="text-muted text-center">No ticket currently being served</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -169,6 +192,22 @@
             // NEXT IN QUEUE
             const nextClient = $("#queue-table tbody tr").first().data("number");
             $("#next-queue-number").text(nextClient || "--");
+             
+            // Refresh CURRENT TICKET INFO by fetching the latest served entry
+            if (served.length > 0) {
+                // Get the first served ticket number and fetch full details
+                $.ajax({
+                    url: "{% url 'get_current_served' %}",
+                    method: "GET",
+                    success: function(data) {
+                        // Replace the current ticket info section with fresh data
+                        const ticketInfoBox = document.querySelector(".row.g-4 .col-lg-4:last-child .next-queue-box");
+                        if (ticketInfoBox && data.html) {
+                            ticketInfoBox.innerHTML = data.html;
+                        }
+                    }
+                });
+            }
 
             lastServed = served;
             lastLatestId = data.latest_id;
