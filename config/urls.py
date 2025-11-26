@@ -29,8 +29,7 @@ urlpatterns = [
     path("login/", CentralLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
-    path('', views.department_selection, name='department_selection'),
-    path('kiosk/<int:department_id>/', views.kiosk, name='kiosk_with_department'),
+    path('', views.kiosk, name='kiosk'),
     path("admin/reports/", views.admin_reports_dashboard, name="admin_reports_dashboard"),
 
 
