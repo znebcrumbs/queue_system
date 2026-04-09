@@ -59,7 +59,11 @@ def require_any_permission(*permission_slugs):
         @wraps(func)
         @login_required
         def wrapper(request, *args, **kwargs):
-            if not request.user.has_any_permission(*permission_slugs):
+            if not request.user.has_any_permission(*permission_slugs):                # Log denied access attempts
+                logger.warning(
+                    f"Permission denied for user {request.user.username}: "
+                    f"missing one of {permission_slugs}"
+                )
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({
                         'error': 'Access denied',
@@ -85,7 +89,11 @@ def require_all_permissions(*permission_slugs):
         @wraps(func)
         @login_required
         def wrapper(request, *args, **kwargs):
-            if not request.user.has_all_permissions(*permission_slugs):
+            if not request.user.has_all_permissions(*permission_slugs):                # Log denied access attempts
+                logger.warning(
+                    f"Permission denied for user {request.user.username}: "
+                    f"missing all of {permission_slugs}"
+                )
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({
                         'error': 'Access denied',
@@ -127,6 +135,46 @@ def audit_log_action(action_enum):
                     description=f"Accessed {func.__name__}",
                     request=request
                 )
+            
+            return func(request, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def require_role(*allowed_roles):
+    """
+    Decorator to restrict view access by user role.
+    Checks if user's custom_role has the required permissions for allowed roles.
+    
+    Usage:
+        @require_role('ADMIN', 'REGISTRAR')
+        def dashboard(request):
+            pass
+    """
+    def decorator(func):
+        @wraps(func)
+        @login_required
+        def wrapper(request, *args, **kwargs):
+            if not request.user.custom_role:
+                logger.warning(
+                    f"Access denied for user {request.user.username}: no role assigned"
+                )
+                return HttpResponseForbidden("Your account has no role assigned. Contact an administrator.")
+            
+            user_role_slug = request.user.custom_role.slug
+            
+            # Check if user's role is in allowed roles
+            if user_role_slug not in allowed_roles:
+                logger.warning(
+                    f"Access denied for user {request.user.username}: "
+                    f"role '{user_role_slug}' not in allowed roles {allowed_roles}"
+                )
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'error': 'Access denied',
+                        'detail': f'Required roles: {", ".join(allowed_roles)}'
+                    }, status=403)
+                return HttpResponseForbidden(f"You don't have permission to access this resource. Required roles: {', '.join(allowed_roles)}")
             
             return func(request, *args, **kwargs)
         return wrapper

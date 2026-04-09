@@ -22,6 +22,15 @@ class QAccountsConfig(AppConfig):
             import logging
             logger = logging.getLogger(__name__)
             logger.debug(f"RBAC bootstrap skipped: {e}")
+        
+        # Register signal handlers for cache invalidation
+        try:
+            from apps.accounts.signals import register_signals
+            register_signals()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Signal registration: {e}")
 
 
 

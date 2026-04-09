@@ -36,7 +36,33 @@ class CustomPermission(models.Model):
     
     @classmethod
     def ensure_builtin_permissions(cls):
-        """Create default permissions if they don't exist."""
+        """
+        Create default permissions if they don't exist.
+        
+        Permission Naming Convention:
+        =============================
+        All permission slugs follow the pattern: action_resource
+        
+        Examples:
+        - create_ticket  (action: create, resource: ticket)
+        - view_tickets   (action: view, resource: tickets for listing)
+        - manage_user    (action: manage, resource: user for CRUD operations)
+        - export_report  (action: export, resource: report)
+        
+        Rules:
+        1. Use lowercase with underscores
+        2. Use singular form for resources (ticket, user, report)
+        3. Use the exact action verb (create, view, edit, delete, manage, export, import)
+        4. For list/view operations: use "view_<resource>s" (view_tickets, view_audit_logs)
+        5. For management operations: use "manage_<resource>" (manage_user, manage_department)
+        
+        DON'T use:
+        - camelCase (canViewQueue, manageQueue)
+        - Mixed singular/plural ✗ (manage_user, edit_users)
+        - Prefix patterns ✗ (permission_view_ticket)
+        
+        Built-in Permissions (30 total):
+        """
         permissions_data = [
             # Dashboard
             ('view_dashboard', 'View Dashboard', 'dashboard', 'Access main dashboard'),
