@@ -26,6 +26,7 @@ urlpatterns = [
     path("accounts/", include("apps.accounts.urls")),
     path("queues/", include("apps.queues.urls")),
     path("survey/", include("apps.survey.urls")),
+    path("audit/", include("apps.audit.urls")),
     path("login/", CentralLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 

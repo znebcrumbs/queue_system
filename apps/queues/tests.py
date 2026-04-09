@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
-from apps.accounts.models import User
+from apps.accounts.models import User, CustomRole
 from apps.queues.models import Department, ServiceType, QueueEntry
 from django.conf import settings
 import uuid
@@ -14,12 +14,16 @@ class QueueSystemTests(TestCase):
             name="Test Service",
             prefix="TS",
             department=self.dept,
-            assigned_role=User.Role.MIS
+        )
+        # Get or create MIS role
+        mis_role, _ = CustomRole.objects.get_or_create(
+            slug='mis',
+            defaults={'name': 'Management Information Systems', 'is_system': True}
         )
         self.staff_user = User.objects.create_user(
             username="staff",
             password="staffpassword",
-            role=User.Role.MIS,
+            custom_role=mis_role,
             department=self.dept
         )
 

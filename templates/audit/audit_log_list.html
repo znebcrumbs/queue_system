@@ -1,0 +1,348 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Audit Logs - Queue System{% endblock %}
+
+{% block extrastyle %}
+    <style>
+        .audit-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .audit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 20px;
+        }
+        
+        .audit-header h1 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .audit-filters {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        
+        .audit-filters form {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        
+        .audit-filters select,
+        .audit-filters input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .audit-filters button {
+            padding: 8px 20px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .audit-filters button:hover {
+            background: #0052a3;
+        }
+        
+        .audit-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .audit-table thead {
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        .audit-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .audit-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        
+        .audit-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .badge-success { background: #28a745; }
+        .badge-info { background: #17a2b8; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .badge-danger { background: #dc3545; }
+        .badge-secondary { background: #6c757d; }
+        
+        .action-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+        }
+        
+        .action-created { background: #28a745; }
+        .action-updated { background: #0066cc; }
+        .action-deleted { background: #dc3545; }
+        .action-login { background: #17a2b8; }
+        .action-logout { background: #6c757d; }
+        .action-unauthorized { background: #ff6b6b; }
+        
+        .log-row-expandable {
+            cursor: pointer;
+        }
+        
+        .log-row-expandable:hover {
+            background: #e8f4f8 !important;
+        }
+        
+        .details-row {
+            display: none;
+            background: #f8f9fa;
+        }
+        
+        .details-row.show {
+            display: table-row;
+        }
+        
+        .details-cell {
+            padding: 20px;
+            border-top: 2px solid #dee2e6;
+        }
+        
+        .details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .detail-section {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .detail-section h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 8px;
+        }
+        
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .detail-value {
+            color: #333;
+            word-break: break-word;
+            text-align: right;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .json-view {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            color: #333;
+        }
+        
+        .pagination {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        .pagination a,
+        .pagination .page-link {
+            display: inline-block;
+            padding: 8px 12px;
+            margin: 0 2px;
+            border: 1px solid #ddd;
+            background: white;
+            color: #0066cc;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        
+        .pagination .page-link.active {
+            background: #0066cc;
+            color: white;
+            border-color: #0066cc;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="audit-container">
+    <div class="audit-header">
+        <div>
+            <h1>Audit Logs</h1>
+            <p style="color: #666; margin: 5px 0 0 0;">Complete system activity trail</p>
+        </div>
+        <a href="{% url 'audit:stats' %}" class="badge badge-info" style="text-decoration: none; padding: 10px 20px;">
+            View Statistics
+        </a>
+    </div>
+    
+    <div class="audit-filters">
+        <form method="get">
+            <select name="action">
+                <option value="">All Actions</option>
+                {% for value, label in action_choices %}
+                    <option value="{{ value }}" {% if action_filter == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit">Filter</button>
+        </form>
+    </div>
+    
+    <table class="audit-table">
+        <thead>
+            <tr>
+                <th width="150">Timestamp</th>
+                <th width="150">Action</th>
+                <th width="200">User</th>
+                <th width="250">Object</th>
+                <th>IP Address</th>
+                <th width="100">Method</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+                <tr class="log-row-expandable" onclick="toggleDetails(this)">
+                    <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                    <td>
+                        <span class="action-badge action-{% log.action|lower %}">
+                            {{ log.get_action_display|slice:":15" }}
+                        </span>
+                    </td>
+                    <td>{{ log.user.username|default:"System" }}</td>
+                    <td>
+                        <strong>{{ log.object_type }}</strong><br>
+                        <small>{{ log.object_name|truncatewords:5 }}</small>
+                    </td>
+                    <td><small>{{ log.ip_address|default:"N/A" }}</small></td>
+                    <td>
+                        {% if log.http_method %}
+                            <span class="badge" style="background: #17a2b8;">{{ log.http_method }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr class="details-row">
+                    <td colspan="6">
+                        <div class="details-cell">
+                            <div class="details">
+                                <div class="detail-section">
+                                    <h4>Request Details</h4>
+                                    <div class="detail-item">
+                                        <span class="detail-label">Path:</span>
+                                        <span class="detail-value">{{ log.request_path|default:"N/A" }}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">User Agent:</span>
+                                        <span class="detail-value">{{ log.user_agent|truncatewords:3|default:"N/A" }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <h4>Description</h4>
+                                    <p style="margin: 0; font-size: 13px; line-height: 1.5;">
+                                        {{ log.description|default:"No description" }}
+                                    </p>
+                                </div>
+                                
+                                {% if log.old_values %}
+                                <div class="detail-section">
+                                    <h4>Previous Values</h4>
+                                    <div class="json-view">{{ log.old_values|json_script:"old-values" }}</div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if log.new_values %}
+                                <div class="detail-section">
+                                    <h4>Updated Values</h4>
+                                    <div class="json-view">{{ log.new_values|json_script:"new-values" }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
+                        No audit logs found
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function toggleDetails(row) {
+    const detailsRow = row.nextElementSibling;
+    if (detailsRow && detailsRow.classList.contains('details-row')) {
+        detailsRow.classList.toggle('show');
+    }
+}
+</script>
+{% endblock %}
