@@ -1,0 +1,55 @@
+{# q_queues/templates/q_queues/partials/queue_table.html #}
+<table class="table align-middle table-hover shadow-sm rounded overflow-hidden">
+    <thead class="table-primary">
+        <tr>
+            <th scope="col">Number</th>
+            <th scope="col">Service</th>
+            <th scope="col">Status</th>
+            <th scope="col">Created</th>
+            <th scope="col" class="text-center">Action</th>
+        </tr>
+    </thead>
+    
+    <tbody>
+        {% for entry in entries %}
+            <tr data-id="{{ entry.id }}" data-status="{{ entry.status }}">
+                <td class="q-number fw-bold text-primary">{{ entry.queue_number }}</td>
+                <td>{{ entry.service_type.name }}</td>
+                <td class="q-status">
+                    {% if entry.status == "SERVED" %}
+                        <span class="badge bg-success">{{ entry.get_status_display }}</span>
+                    {% elif entry.status == "RETURNED" %}
+                        <span class="badge bg-warning text-dark">{{ entry.get_status_display }}</span>
+                    {% elif entry.status == "CANCELLED" %}
+                        <span class="badge bg-danger">{{ entry.get_status_display }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ entry.get_status_display }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ entry.created_at|date:"H:i:s" }}</td>
+                <td class="text-center">
+                    <form method="post" action="{% url 'update_queue_entry' entry.id %}" class="d-inline confirm-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="SERVED">
+                        <button type="submit" class="btn btn-outline-success btn-sm">Serve</button>
+                    </form>
+                    <form method="post" action="{% url 'update_queue_entry' entry.id %}" class="d-inline confirm-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="RETURNED">
+                        <button type="submit" class="btn btn-outline-warning btn-sm">Return</button>
+                    </form>
+                    <form method="post" action="{% url 'update_queue_entry' entry.id %}" class="d-inline confirm-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="CANCELLED">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Cancel</button>
+                    </form>
+                </td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">No entries yet.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</tbody>
+</table>

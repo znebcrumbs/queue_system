@@ -1,0 +1,157 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Queue Ticket</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+         .table-success {
+      animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+      0% { background-color: #c9f7d3; }
+      50% { background-color: #e9ffe9; }
+      100% { background-color: #c9f7d3; }
+  }
+  @media print {
+      .now-serving table { font-size: 12px; }
+  } 
+        .ticket {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 2px dashed #333;
+            text-align: center;
+        }
+        .status {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .flash {
+            animation: flash-bg 1s ease-in-out;
+        }
+        @keyframes flash-bg {
+            0% { background-color: #55bc6d; }
+            100% { background-color: transparent; }
+        }
+        .flash-red {
+            animation: flash-bg-red 1s ease-in-out;
+        }
+        @keyframes flash-bg-red {
+            0% { background-color: #dc3545; }
+            100% { background-color: transparent; }
+        }
+    </style>
+</head>
+<body>
+    <div id="printable-ticket">
+  
+
+    <div class="ticket" id="ticket-box">
+        <h2>Your Queue Ticket</h2>
+        <h1 class="display-3">{{ entry.queue_number }}</h1>
+        <p><strong>Department:</strong> {{ entry.department }}</p>
+        <p><strong>Service:</strong> {{ entry.service_type.name }}</p>
+        <p class="status text-primary" id="status">{{ entry.get_status_display }}</p>
+        <img src="{% url 'generate_qr' entry.id %}" alt="QR Code">
+        <p><small>Issued at {{ entry.created_at|date:"H:i:s" }}</small></p>
+    </div>
+  <!-- Improved NOW SERVING Section -->
+<div class="now-serving mt-4">
+  <h4 class="text-center fw-bold text-primary">🛎️ Next In Queue</h4>
+
+    {% if now_waiting %}
+    <table class="table table-sm table-bordered text-center align-middle">
+      <thead>
+        <tr>
+          <th>Ticket #</th>
+          <th>Service</th>
+          <th>Department</th>
+        </tr>
+      </thead>
+      <tbody>
+                {% for s in now_waiting %}
+          <tr class="now-row {% if forloop.first %}table-success fw-bold{% endif %}">
+            <td>{{ s.queue_number }}</td>
+            <td>{{ s.service_type.name }}</td>
+            <td>{{ s.department.name }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="text-center text-muted">---</p>
+  {% endif %}
+</div>
+    <div class="text-center mt-4">
+    <a href="{% url 'survey' entry.id %}" class="btn btn-outline-primary">
+        Give Feedback
+    </a>
+     
+</div>
+<div class = "text-center mt-4">
+<button class="btn btn-primary" onclick="window.print()" class="btn btn-primary">🖨️ Print Ticket</button>
+</div>
+
+    <audio id="ding" src="{% static 'sounds/ding.mp3' %}" preload="auto"></audio>
+
+    <script>
+        let lastStatus = "{{ entry.get_status_display }}";
+
+        function refreshStatus() {
+            $.get("{% url 'queue_ticket' entry.id %}?ajax=1", function(data) {
+                if (data.status && data.status !== lastStatus) {
+                    $("#status").text(data.status);
+
+                    if (data.status === "Served") {
+                        $("#status").removeClass().addClass("status text-success");
+                        $("#ticket-box").addClass("flash");
+                        document.getElementById("ding").play();
+                        setTimeout(() => $("#ticket-box").removeClass("flash"), 1500);
+                    } else if (data.status === "Cancelled") {
+                        $("#status").removeClass().addClass("status text-danger");
+                         $("#ticket-box").addClass("flash-red");
+                        document.getElementById("ding").play();
+                        setTimeout(() => $("#ticket-box").removeClass("flash-red"), 1500);
+                    } else if (data.status === "Returned") {
+                        $("#status").removeClass().addClass("status text-warning");
+                    } else {
+                        $("#status").removeClass().addClass("status text-primary");
+                    }
+
+                    lastStatus = data.status;
+                }
+            });
+        }
+
+        setInterval(refreshStatus, 2000); 
+      window.onload = () => {
+        if (window.location.search.includes("auto_print=1")) {
+            window.print();
+        }
+    }
+    document.getElementById('printTicketBtn').addEventListener('click', function(){
+  window.print(); // prints ticket page
+});
+ if (served.length > 0) {
+                $("#now-serving").html(`
+                    <div class="text-muted">Now Serving</div>
+                    <div class="queue-number-big">${served[0]}</div>
+                `);
+
+                if (lastServed.length && served[0] !== lastServed[0]) {
+                    const audio = document.getElementById("ding");
+                    if (audio && typeof audio.play === 'function') {
+                        // play() returns a promise — handle rejection (autoplay policies, unsupported sources)
+                        audio.play().catch(() => {});
+                    }
+
+                    $(".queue-number-big").addClass("highlight");
+                    setTimeout(() => $(".queue-number-big").removeClass("highlight"), 1200);
+                }
+            }
+    </script>
+</body>
+</html>

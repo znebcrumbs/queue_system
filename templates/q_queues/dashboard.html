@@ -1,0 +1,330 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Staff Panel</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        body {
+            background-color: #f8fbff;
+            color: #1a2b4c;
+        }
+        .panel-card {
+            border-radius: 1rem;
+            padding: 2rem;
+            background: #fff;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+        }
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .now-serving-box,
+        .next-queue-box {
+            padding: 2rem;
+            border-radius: 1rem;
+            background-color: #f4f9ff;
+            text-align: center;
+            border: 2px dashed #bcd8ff;
+        }
+        .queue-number-big {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+        }
+        .btn-call-next {
+            background: #1e90ff;
+            color: #fff;
+            font-weight: 600;
+        }
+        .btn-call-next:hover {
+            background: #1472d4;
+        }
+        .action-btn {
+            border-radius: 50px;
+            padding: 4px 16px;
+            font-size: 0.85rem;
+        }
+        .highlight {
+            animation: flash 1s ease-in-out;
+        }
+        @keyframes flash {
+            0% { background-color: #d4edda; }
+            100% { background-color: white; }
+        }
+    </style>
+</head>
+
+<body class="container py-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="fw-bold">Staff Panel</h1>
+
+        <div class="d-flex gap-2">
+
+            <a href="{% url 'reports_dashboard' %}" class="btn btn-outline-primary btn-sm">
+                Reports
+            </a>
+
+            {% if user.is_superuser %}
+            <a href="/admin/" class="btn btn-outline-dark btn-sm">
+                Admin Dashboard
+            </a>
+            {% endif %}
+
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button class="btn btn-danger btn-sm">Logout</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOP ROW: NOW SERVING + NEXT IN QUEUE + CURRENT TICKET INFO -->
+    <div class="row g-4">
+
+        <!-- NOW SERVING -->
+        <div class="col-lg-4">
+            <div class="panel-card">
+                <div class="section-title">Now Serving</div>
+
+                <div id="now-serving" class="now-serving-box">
+                    <div>Waiting for client to be called...</div>
+                    <div class="queue-number-big">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEXT IN QUEUE -->
+        <div class="col-lg-4">
+            <div class="panel-card">
+                <div class="section-title">Next in Queue</div>
+
+                <div id="next-queue" class="next-queue-box">
+                    <div class="text-muted mb-2">Next in queue</div>
+                    {% if now_serving %}
+                    <tr class="table-success fw-bold">
+                        <td>{{ now_serving.queue_number }}</td>
+                        <td>{{ now_serving.service_type.name }}</td>
+                        <td>{{ now_serving.department.name }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="text-center">No active serving</td></tr>
+                    {% endif %}
+
+
+                    <button id="callNextBtn" class="btn btn-call-next mt-3">▶ Call Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CURRENT TICKET INFO -->
+        <div class="col-lg-4">
+            <div class="panel-card">
+                <div class="section-title">Current Ticket Info</div>
+
+                <div class="next-queue-box">
+                    {% if currently_served %}
+                        <div class="text-muted mb-2">Currently Being Served</div>
+                        <div class="queue-number-big text-success">{{ currently_served.queue_number }}</div>
+                        <div class="mt-3">
+                            <p><strong>Service:</strong> {{ currently_served.service_type.name }}</p>
+                            <p><strong>Department:</strong> {{ currently_served.department.name }}</p>
+                            <p><strong>Client Name:</strong> {{ currently_served.name|default:"N/A" }}</p>
+                            <p><strong>Mobile:</strong> {{ currently_served.mobile_number|default:"N/A" }}</p>
+                            <p><strong>Email:</strong> {{ currently_served.email|default:"N/A" }}</p>
+                        </div>
+                    {% else %}
+                        <div class="text-muted text-center">No ticket currently being served</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACTIVE QUEUE LIST -->
+    <div class="panel-card mt-4">
+        <div class="section-title">Active Queue List</div>
+
+        <div id="queue-table">
+            {% include "q_queues/partials/queue_table.html" %}
+        </div>
+    </div>
+
+    <audio id="ding" src="{% static 'sounds/ding.mp3' %}" preload="auto"></audio>
+
+<script>
+    let lastServed = [];
+    let lastLatestId = null;
+    let formToSubmit = null;
+
+    function refreshQueue() {
+        $.get("{% url 'queue_list' %}", function(data) {
+
+            $("#queue-table").html(data.html);
+
+            const served = data.served || [];
+
+            // NOW SERVING PANEL
+            if (served.length > 0) {
+                $("#now-serving").html(`
+                    <div class="text-muted">Now Serving</div>
+                    <div class="queue-number-big">${served[0]}</div>
+                `);
+
+                if (lastServed.length && served[0] !== lastServed[0]) {
+                    const audio = document.getElementById("ding");
+                    if (audio && typeof audio.play === 'function') {
+                        // play() returns a promise — handle rejection (autoplay policies, unsupported sources)
+                        audio.play().catch(() => {});
+                    }
+
+                    $(".queue-number-big").addClass("highlight");
+                    setTimeout(() => $(".queue-number-big").removeClass("highlight"), 1200);
+                }
+            }
+
+            // NEXT IN QUEUE
+            const nextClient = $("#queue-table tbody tr").first().data("number");
+            $("#next-queue-number").text(nextClient || "--");
+             
+            // Refresh CURRENT TICKET INFO by fetching the latest served entry
+            if (served.length > 0) {
+                // Get the first served ticket number and fetch full details
+                $.ajax({
+                    url: "{% url 'get_current_served' %}",
+                    method: "GET",
+                    success: function(data) {
+                        // Replace the current ticket info section with fresh data
+                        const ticketInfoBox = document.querySelector(".row.g-4 .col-lg-4:last-child .next-queue-box");
+                        if (ticketInfoBox && data.html) {
+                            ticketInfoBox.innerHTML = data.html;
+                        }
+                    }
+                });
+            }
+
+            lastServed = served;
+            lastLatestId = data.latest_id;
+        });
+    }
+    // EVENT DELEGATION (works even after AJAX)
+$(document).on("click", ".queue-action", function () {
+    const id = $(this).data("id");
+    const status = $(this).data("status");
+    confirmAction(id, status);
+});
+
+// Intercept form submits from the queue table and show confirmation modal
+$(document).on('submit', '.confirm-form', function (e) {
+    e.preventDefault();
+    formToSubmit = this;
+    const status = $(this).find("input[name='status']").val();
+    $("#modalMessage").text(`Are you sure you want to mark this as ${status}?`);
+
+    // when confirmed, submit the form via AJAX and refresh the queue
+    $("#confirmBtn").off('click').on('click', function () {
+        const $form = $(formToSubmit);
+        $.ajax({
+            url: $form.attr('action'),
+            method: $form.attr('method') || 'POST',
+            data: $form.serialize(),
+            success: function () {
+                if (window.confirmModal) window.confirmModal.hide();
+                refreshQueue();
+            }
+        });
+    });
+
+    if (window.confirmModal) window.confirmModal.show();
+});
+
+function confirmCallNext() {
+    const nextId = $("#queue-table tbody tr").first().data("id");
+    if (!nextId) {
+        alert("No clients in queue.");
+        return;
+    }
+
+    $("#modalMessage").text(`Call next client?`);
+    $("#confirmBtn").off("click").on("click", function () {
+        $.ajax({
+            url: `/queues/update/${nextId}/`,
+            method: "POST",
+            data: {
+                csrfmiddlewaretoken: "{{ csrf_token }}",
+                status: "SERVED",
+            },
+            success: function () {
+                // hide using bootstrap Modal API instance
+                if (window.confirmModal) window.confirmModal.hide();
+                refreshQueue();
+            }
+        });
+    });
+
+    if (window.confirmModal) window.confirmModal.show();
+}
+
+    // Wire callNextBtn to show confirmation modal (actual action happens on confirm)
+    $("#callNextBtn").off("click").on("click", confirmCallNext);
+
+function confirmAction(id, status) {
+    $("#modalMessage").text(`Are you sure you want to mark as ${status}?`);
+    $("#confirmBtn").off("click").on("click", function () {
+        $.ajax({
+            url: `/queues/update/${id}/`,
+            method: "POST",
+            data: {
+                csrfmiddlewaretoken: "{{ csrf_token }}",
+                status: status,
+            },
+            success: function () {
+                if (window.confirmModal) window.confirmModal.hide();
+                refreshQueue();
+            }
+        });
+    });
+
+    if (window.confirmModal) window.confirmModal.show();
+}
+
+
+
+    $(document).ready(function() {
+        // initialize Bootstrap modal instance for later use (Bootstrap 5 API)
+        const confirmModalEl = document.getElementById('confirmModal');
+        if (confirmModalEl && window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+            window.confirmModal = new bootstrap.Modal(confirmModalEl);
+        }
+
+        refreshQueue();
+        setInterval(refreshQueue, 5000);
+    });
+</script>
+<!-- CONFIRMATION MODAL -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Confirm Action</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="modalMessage">Are you sure?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="confirmBtn" class="btn btn-danger" >Yes, Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

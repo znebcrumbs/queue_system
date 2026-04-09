@@ -1,0 +1,246 @@
+Queue System — Codebase Documentation
+===================================
+
+Location: c:\Users\Administrator1\Desktop\queue_system
+
+Purpose
+-------
+This document describes the structure, key files, behavior, and operational/debugging steps
+for the `queue_system` Django project. It summarizes how the apps work, important implementation
+details, known issues and fixes applied, and command snippets you can use to run and debug the
+project locally.
+
+Sections
+--------
+- Project overview
+- Setup & run
+- Apps and responsibilities
+- Models summary
+- Views & URLs overview
+- Templates & front-end behavior
+- Admin configuration
+- Security / Cookies / CSRF notes
+- Known issues and applied fixes
+- Useful management & debug commands
+- File map (key files)
+- Recommendations and next steps
+
+
+1) Project overview
+-------------------
+Name: queue_system
+Framework: Django (project created with Django 5.x)
+Database: Postgres (configured in `config/settings.py`) — local dev can use Postgres or adjust to SQLite.
+
+High-level apps:
+- `q_accounts`: custom user model + auth-related views/admin customizations.
+- `q_queues`: core queueing logic (departments, service types, queue entries), views, templates.
+- `q_survey`: survey models and views (feedback/rating on served queues).
+- `config`: Django project settings, URLs, WSGI/ASGI.
+
+The project uses a custom `AUTH_USER_MODEL` defined at `q_accounts.models.User` (subclass of `AbstractUser`).
+
+
+2) Setup & run
+---------------
+Prerequisites:
+- Python 3.10+ (project uses 3.10+ in examples; adjust for your environment)
+- PostgreSQL (or adapt DATABASES to sqlite3 for quick dev)
+- virtualenv or venv recommended
+
+Quick start (development):
+
+Windows PowerShell example (from project root):
+```powershell
+# Create and activate venv (Windows PowerShell)
+python -m venv venv
+.\venv\Scripts\Activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Update DB settings in `config/settings.py` if needed, then run migrations
+python manage.py migrate
+
+# Create superuser for admin access
+python manage.py createsuperuser
+
+# Run the development server
+python manage.py runserver
+```
+
+Notes:
+- For production, set `DEBUG=False`, configure `ALLOWED_HOSTS`, secure cookie flags and HTTPS.
+- There are commands in the doc for backing up Postgres (`pg_dump`) and creating users non-interactively.
+
+
+3) Apps and responsibilities
+-----------------------------
+q_accounts
+- Location: `q_accounts/`
+- Contains `models.py` with `User(AbstractUser)` augmented with `role` (TextChoices) and `department` FK.
+- `admin.py` registers a `CustomUserAdmin` that exposes `role` and `department` in admin.
+- `views.py` includes `CentralLoginView` (subclass of `LoginView`) that sets `get_success_url` depending on user role.
+
+q_queues
+- Location: `q_queues/`
+- Models: `ServiceType`, `Department`, `QueueEntry`.
+- Views: `dashboard`, `queue_list` (AJAX), `create_queue_entry` (csrf_exempt for kiosks), `update_queue_entry` (status updates), `kiosk`, `generate_qr`, `reports_dashboard`, CSV exports, `department_selection`.
+- Templates: `templates/q_queues/*`, partials under `templates/q_queues/partials` including `queue_table.html`.
+- Admin: `q_queues/admin.py` registers `ServiceType`, `QueueEntry`, `Department`.
+
+q_survey
+- Location: `q_survey/`
+- Contains survey models and basic views (used in reports). See `q_survey/models.py`.
+
+
+4) Models summary
+------------------
+Key models (fields summarized):
+
+- `q_accounts.models.User` (extends `AbstractUser`)
+  - `department` -> FK to `q_queues.Department` (nullable)
+  - `role` -> CharField with choices (`Role.choices`), default MIS
+
+- `q_queues.models.Department`:
+  - `name`, `description`, `slug`
+
+- `q_queues.models.ServiceType`:
+  - `name`, `description`, `prefix`, `department` (FK), `assigned_role`
+  - `generate_queue_number()` helper to generate queue numbers
+
+- `q_queues.models.QueueEntry`:
+  - `client` (FK to User), `service_type` FK, `queue_number`, `qr_code_data`, `status` (TextChoices: WAITING, SERVED, RETURNED, CANCELLED)
+  - `created_at`, `served_at`, `department`, name/mobile/email/section
+  - UniqueConstraint for queue_number/service_type/created_at (per-day uniqueness)
+
+
+5) Views & URLs (high-level)
+-----------------------------
+Important views and behavior:
+
+- Authentication:
+  - `q_accounts.views.CentralLoginView` (LoginView subclass) — route `q_accounts/urls.py` defines `login/` to this view.
+  - `LOGIN_URL`, `LOGIN_REDIRECT_URL`, `LOGOUT_REDIRECT_URL` set in `config/settings.py`.
+
+- Dashboard & Queue
+  - `q_queues.views.dashboard`: Staff/Admin dashboard. If staff user has no `department` the view redirects to `department_selection` (avoid login redirect loop).
+  - `q_queues.views.queue_list`: AJAX endpoint returning HTML partial and metadata for current queue + served entries.
+  - `q_queues.views.create_queue_entry`: `@csrf_exempt` endpoint for kiosk devices to create a new queue entry.
+  - `q_queues.views.update_queue_entry`: endpoint (POST or GET) to update `QueueEntry` status; used by staff and kiosk devices; decorated `@csrf_exempt` in some cases.
+  - `q_queues.views.kiosk`: public-facing kiosk UI to create tickets.
+  - `generate_qr`, `queue_ticket` to display ticket QR and ticket page.
+
+- Reports & CSV
+  - `reports_dashboard`, `export_queues_csv`, `export_surveys_csv` — staff-facing reports and CSV export utilities.
+
+Routes are defined in each app's `urls.py` and included centrally in `config/urls.py`.
+
+
+6) Templates & front-end behavior
+---------------------------------
+Main templates:
+- `templates/accounts/login.html` — staff login (contains `{% csrf_token %}`).
+- `templates/q_queues/dashboard.html` — main staff dashboard with Now Serving, Next in Queue, Active Queue List. The file contains JavaScript that:
+  - Polls `/queues/queue_list` every 5 seconds (AJAX) and replaces the `#queue-table` HTML partial
+  - Plays a sound and highlights the queue number when "   ,  " changes
+  - Implements a confirmation modal for actions (Call Next, Serve/Return/Cancel) using Bootstrap 5 modal API
+  - The `Call Next` button shows confirmation modal, then sends POST to `/queues/update/<id>/` and refreshes queue
+
+- `templates/q_queues/partials/queue_table.html` — table partial used by the AJAX call. Forms in this partial have class `confirm-form`; the dashboard JavaScript intercepts their submit and shows the modal before performing AJAX POST.
+
+Front-end notes:
+- The project uses jQuery for AJAX and DOM handling and Bootstrap 5 for styles & modal. The code uses the Bootstrap 5 Modal JS API (not jQuery `.modal()`) to avoid compatibility issues.
+- Audio playback is attempted via `audio.play().catch()` to avoid unhandled promise rejections when autoplay is blocked.
+
+
+7) Admin configuration
+----------------------
+- `q_accounts/admin.py` registers `User` with a `CustomUserAdmin` that exposes `role` and `department` fields and enables filtering/search.
+- `q_queues/admin.py` registers `ServiceType`, `QueueEntry`, and `Department` for admin management (create/edit departments and service types; see admin to assign `assigned_role`).
+
+Admin actions to manage departments and users:
+- Create Departments in admin (q_queues → Departments).
+- Assign `department` to users via the User admin to avoid redirect loops on the dashboard.
+
+
+8) Security / Cookies / CSRF notes
+----------------------------------
+- `AUTH_USER_MODEL` is `q_accounts.User` in `config/settings.py`.
+- Cookie settings in `config/settings.py` (sensible dev defaults present):
+  - `CSRF_COOKIE_SECURE = False`
+  - `SESSION_COOKIE_SECURE = False`
+  - For production, set both to True and use HTTPS.
+- Middleware includes `SessionMiddleware`, `CsrfViewMiddleware`, `AuthenticationMiddleware` in the correct order.
+- Kiosk endpoints are `@csrf_exempt` because kiosk devices may not handle CSRF tokens. Be careful: these endpoints are unauthenticated and should be protected by other means (IP allow-list, API keys) if exposed publicly.
+
+
+9) Known issues & fixes applied
+--------------------------------
+- Redirect loop after login: If a staff user had no `department`, the dashboard used to redirect to `login`, creating a loop. Fix: dashboard now redirects to `department_selection` (and `CentralLoginView.get_success_url` can route to a safe page). Also better to render a `no_department` message or redirect to profile.
+- Duplicate modal / redeclared JS variable error: The confirmation modal & JS were duplicated inside the partial `queue_table.html`. Fix: keep a single modal and handlers in `dashboard.html` and remove the inline script/modal from the partial. This prevented `Identifier 'formToSubmit' has already been declared` and other errors.
+- Bootstrap modal API: The project uses Bootstrap 5 which removed jQuery plugins. Calls were updated to use the Bootstrap 5 JS API (`new bootstrap.Modal(...)`) and removed reliance on `$(...).modal()`.
+- Session & CSRF troubleshooting notes: There are commands and server-side checks to confirm session creation (look up `django.contrib.sessions.models.Session`) and to check whether the `_auth_user_id` key is present in session data.
+- Missing objects on other machines: calling `.get()` without handling `DoesNotExist` can crash scripts. Use `.filter().first()`, `get_or_create`, or try/except to make scripts robust.
+
+
+10) Useful management & debug commands
+-------------------------------------
+Python / Django shell snippets (copy-paste):
+
+# List users and key fields
+python manage.py shell -c "from django.contrib.auth import get_user_model; User=get_user_model(); print(list(User.objects.values('id','username','is_staff','is_superuser','role','department_id')))"
+
+# Set/reset a user's password
+python manage.py shell -c "from django.contrib.auth import get_user_model; User=get_user_model(); u=User.objects.get(username='admin'); u.set_password('testpass'); u.save()"
+
+# Check whether a session key exists
+python manage.py shell -c "from django.contrib.sessions.models import Session; print(Session.objects.filter(session_key='THE_KEY').exists())"
+
+# Decode session and inspect auth keys
+python manage.py shell -c "from django.contrib.sessions.models import Session; s=Session.objects.get(session_key='THE_KEY'); print(s.get_decoded())"
+
+# Assign a department to a user (quick)
+python manage.py shell -c "from django.contrib.auth import get_user_model; from q_queues.models import Department; User=get_user_model(); u=User.objects.get(username='staff'); u.department=Department.objects.first(); u.save()"
+
+# Make a backup (Postgres example)
+$env:PGPASSWORD='admin'; pg_dump -U queue_admin -h localhost -p 5432 queue_system > queue_system_backup.sql; Remove-Item env:PGPASSWORD
+
+# Apply migrations
+python manage.py migrate
+
+
+11) File map (important files)
+--------------------------------
+- `manage.py` — Django entry point
+- `config/settings.py` — project settings (cookie flags, AUTH_USER_MODEL)
+- `config/urls.py` — project URL routing
+- `q_accounts/models.py` — custom `User` model
+- `q_accounts/admin.py` — admin customization for `User`
+- `q_accounts/views.py` — `CentralLoginView` and user APIs
+- `q_queues/models.py` — `ServiceType`, `Department`, `QueueEntry`
+- `q_queues/views.py` — main application logic and endpoints
+- `q_queues/admin.py` — admin registrations for queue models
+- `q_queues/templates/q_queues/dashboard.html` — staff dashboard + AJAX logic + modal
+- `q_queues/templates/q_queues/partials/queue_table.html` — table partial returned by AJAX
+- `q_survey/` — survey models and templates
+- `requirements.txt` — Python dependencies
+
+
+12) Recommendations & next steps
+--------------------------------
+- Secure kiosk endpoints: add authentication (API keys) or limit by network.
+- Add unit/integration tests for views and model logic (queue number generation, status updates).
+- Add a management command or migration to seed essential data (departments, initial admin) so other machines won't fail on `.get()` lookups.
+- Add logging for status updates and any exceptions in views.
+- For production: enable HTTPS, set `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True`, add HSTS headers and consider SECURE_PROXY_SSL_HEADER if using reverse proxy.
+- Consider rate-limiting or throttling for kiosk endpoints.
+
+
+If you want, I can also:
+- Generate a shorter README.md covering just the run instructions and important configuration snippets.
+- Create a management command `seed_initial_data` that creates departments and an admin user.
+- Add a small 'no_department.html' template and change `dashboard` to render it instead of redirecting.
+
+End of documentation file.
+    
