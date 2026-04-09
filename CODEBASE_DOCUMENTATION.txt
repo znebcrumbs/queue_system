@@ -243,3 +243,4 @@ If you want, I can also:
 - Add a small 'no_department.html' template and change `dashboard` to render it instead of redirecting.
 
 End of documentation file.
+    

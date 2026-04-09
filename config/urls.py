@@ -17,15 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from q_queues import views as queue_views
-from q_accounts.views import CentralLoginView
-from q_queues import views
+from apps.queues import views as queue_views
+from apps.accounts.views import CentralLoginView
+from apps.queues import views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("accounts/", include("q_accounts.urls")),
-    path("queues/", include("q_queues.urls")),
-    path("survey/", include("q_survey.urls")),
+    path("accounts/", include("apps.accounts.urls")),
+    path("queues/", include("apps.queues.urls")),
+    path("survey/", include("apps.survey.urls")),
     path("login/", CentralLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
