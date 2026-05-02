@@ -30,8 +30,9 @@ urlpatterns = [
     path("login/", CentralLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
-    path('', views.kiosk, name='kiosk'),
+    path('', views.kiosk_v4, name='kiosk'),
     path("admin/reports/", views.admin_reports_dashboard, name="admin_reports_dashboard"),
+    path("admin/v4/analytics/", views.admin_analytics, name="admin_analytics"),
 
 
     # Authentication

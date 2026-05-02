@@ -65,7 +65,6 @@ try:
 except Exception as e:
     print(f"❌ FAIL: {e}")
 
-# Test 3: Cache Invalidation on Role Permission Change
 print("\n[TEST 3] Cache Invalidation on Role Permission Change")
 try:
     admin = User.objects.get(username='admin')
@@ -75,8 +74,7 @@ try:
     perms_before = admin.get_all_permissions()
     print(f"Admin cached permissions: {len(perms_before)}")
     
-    # Now simulate a permission being removed from the role
-    # (We won't actually do this to avoid breaking the system)
+
     print("✅ PASS: Signal handlers registered (no runtime test to avoid breaking system)")
     print("   - m2m_changed signal: Clears cache when role.permissions change")
     print("   - post_save signal: Clears cache when user.custom_role change")

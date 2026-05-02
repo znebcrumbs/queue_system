@@ -14,12 +14,12 @@ class RolePermissions:
     ADMIN = {
         'name': 'Administrator',
         'permissions': {
-            # Dashboard
+            
             'view_dashboard': True,
             'view_analytics': True,
             'view_reports': True,
             
-            # Ticket Management
+           
             'create_ticket': True,
             'view_tickets': True,
             'edit_tickets': True,
@@ -27,12 +27,12 @@ class RolePermissions:
             'assign_tickets': True,
             'complete_tickets': True,
             
-            # Queue Management
+            
             'manage_queues': True,
             'manage_departments': True,
             'manage_service_types': True,
             
-            # User Management
+            
             'manage_users': True,
             'create_users': True,
             'edit_users': True,
@@ -40,16 +40,16 @@ class RolePermissions:
             'change_roles': True,
             'reset_passwords': True,
             
-            # System Settings
+            
             'configure_system': True,
             'manage_settings': True,
             
-            # Audit & Security
+            
             'view_audit_logs': True,
             'export_audit_logs': True,
             'view_security_events': True,
             
-            # Data Export
+            
             'export_data': True,
             'export_tickets': True,
             'export_reports': True,
