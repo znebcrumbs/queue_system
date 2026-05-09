@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
-from apps.accounts.models import User, CustomRole
+from apps.accounts.models import User, CustomRole, APIKey
 from apps.queues.models import Department, ServiceType, QueueEntry
 from django.conf import settings
 import uuid
@@ -15,6 +15,14 @@ class QueueSystemTests(TestCase):
             prefix="TS",
             department=self.dept,
         )
+        
+        # Create API key for tests to match settings.KIOSK_API_KEY
+        APIKey.objects.create(
+            key=settings.KIOSK_API_KEY,
+            name="Test Kiosk Key",
+            is_active=True
+        )
+
         # Get or create MIS role
         mis_role, _ = CustomRole.objects.get_or_create(
             slug='mis',
@@ -37,8 +45,8 @@ class QueueSystemTests(TestCase):
             qr_code_data=str(uuid.uuid4())
         )
         num2 = self.service.generate_queue_number()
-        self.assertEqual(num1, "TS-1")
-        self.assertEqual(num2, "TS-2")
+        self.assertEqual(num1, "TS-0001")
+        self.assertEqual(num2, "TS-0002")
 
     def test_create_queue_entry_api_key(self):
         """Test API key security for creating queue entries."""

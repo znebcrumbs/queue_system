@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from .permissions import RolePermissions
+import secrets
 
 
 class CustomPermission(models.Model):
@@ -323,3 +324,55 @@ class User(AbstractUser):
             delattr(self, '_perm_cache')
 
 
+class APIKey(models.Model):
+    """
+    API Key model for Kiosk and external API authentication.
+    Supports multiple keys with enable/disable capability.
+    """
+    key = models.CharField(
+        max_length=40, 
+        unique=True, 
+        db_index=True,
+        help_text="Unique API key for authentication"
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Name/description of this API key (e.g., 'Kiosk Device 1')"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_api_keys',
+        help_text="User who created this API key"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Disable key without deleting it"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of last successful authentication"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'API Key'
+        verbose_name_plural = 'API Keys'
+    
+    def __str__(self):
+        return f"{self.name} (Active: {self.is_active})"
+    
+    @staticmethod
+    def generate_key():
+        """Generate a new unique API key."""
+        return secrets.token_urlsafe(32)
+    
+    def save(self, *args, **kwargs):
+        """Auto-generate key if not provided."""
+        if not self.key:
+            self.key = self.generate_key()
+        super().save(*args, **kwargs)

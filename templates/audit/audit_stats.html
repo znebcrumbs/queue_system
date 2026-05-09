@@ -195,10 +195,12 @@
             <div class="chart-bar">
                 <div class="chart-label">{{ action.action }}</div>
                 <div class="chart-bar-bg">
+                    <!-- stylelint-disable -->
                     <div class="chart-bar-fill action-type-{{ forloop.counter }}" 
                          style="width: {{ action.count|add:0 }}px; min-width: 30%;">
                         {{ action.count }}
                     </div>
+                    <!-- stylelint-enable -->
                 </div>
                 <div class="chart-value">{{ action.count }}</div>
             </div>
@@ -213,9 +215,11 @@
             <div class="chart-bar">
                 <div class="chart-label">{{ user.user__username }}</div>
                 <div class="chart-bar-bg">
+                    <!-- stylelint-disable -->
                     <div class="chart-bar-fill" style="width: {{ user.count|add:0 }}px; min-width: 40%;">
                         {{ user.count }}
                     </div>
+                    <!-- stylelint-enable -->
                 </div>
                 <div class="chart-value">{{ user.count }}</div>
             </div>

@@ -65,6 +65,7 @@ def log_queue_entry_change(sender, instance, created, **kwargs):
 def log_user_change(sender, instance, created, **kwargs):
     """Log user creation or updates."""
     if created:
+        role_name = instance.custom_role.name if instance.custom_role else "No Role"
         AuditLog.log(
             action=AuditLog.Action.USER_CREATED,
             user=None,
@@ -74,10 +75,10 @@ def log_user_change(sender, instance, created, **kwargs):
             new_values={
                 'username': instance.username,
                 'email': instance.email,
-                'role': instance.role,
+                'role': role_name,
                 'is_staff': instance.is_staff,
             },
-            description=f"User {instance.username} created with role {instance.role}"
+            description=f"User {instance.username} created with role {role_name}"
         )
 
 

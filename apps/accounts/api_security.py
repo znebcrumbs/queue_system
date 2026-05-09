@@ -56,7 +56,7 @@ class APISecurityMiddleware:
 def api_authentication_required(view_func):
     """
     Decorator for API endpoints that require valid API key authentication.
-    Checks X-API-Key header or api_key query parameter.
+    Checks X-API-Key header or api_key query parameter against database.
     
     Usage:
         @api_authentication_required
@@ -65,18 +65,46 @@ def api_authentication_required(view_func):
     """
     @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
+        from apps.accounts.models import APIKey
+        from django.utils import timezone
+        
         # Get API key from header or query params
         api_key = (
             request.headers.get('X-API-Key') or 
+            request.headers.get('X-Kiosk-API-Key') or
             request.GET.get('api_key') or 
             request.POST.get('api_key')
         )
         
-        # Check if API key is valid
-        if not api_key or api_key != settings.KIOSK_API_KEY:
-            logger.warning(f"API authentication failed: {request.method} {request.path} from {request.META.get('REMOTE_ADDR')}")
+        # Check if API key exists and is active in database
+        if not api_key:
+            logger.warning(f"API authentication failed: missing key - {request.method} {request.path} from {request.META.get('REMOTE_ADDR')}")
+            AuditLog.log(
+                action=AuditLog.Action.UNAUTHORIZED_ACCESS,
+                user=None,
+                object_type='API',
+                object_id=0,
+                object_name=request.path,
+                description=f"Missing API key on {request.path}",
+                request=request
+            )
+            return JsonResponse(
+                {'error': 'Authentication failed', 'detail': 'Missing API key'},
+                status=401
+            )
+        
+        try:
+            # Check database for valid API key
+            api_key_obj = APIKey.objects.get(key=api_key, is_active=True)
             
-            # Log to audit trail
+            # Update last_used_at timestamp
+            api_key_obj.last_used_at = timezone.now()
+            api_key_obj.save(update_fields=['last_used_at'])
+            
+            logger.info(f"API authentication successful for '{api_key_obj.name}' - {request.method} {request.path}")
+            
+        except APIKey.DoesNotExist:
+            logger.warning(f"API authentication failed: invalid key - {request.method} {request.path} from {request.META.get('REMOTE_ADDR')}")
             AuditLog.log(
                 action=AuditLog.Action.UNAUTHORIZED_ACCESS,
                 user=None,
@@ -86,9 +114,8 @@ def api_authentication_required(view_func):
                 description=f"Invalid API key attempt on {request.path}",
                 request=request
             )
-            
             return JsonResponse(
-                {'error': 'Authentication failed', 'detail': 'Invalid or missing API key'},
+                {'error': 'Authentication failed', 'detail': 'Invalid or inactive API key'},
                 status=401
             )
         

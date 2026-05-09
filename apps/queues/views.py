@@ -1,26 +1,67 @@
 import uuid
 import logging
 import functools
+import time
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.contrib.auth.decorators import login_required
-from .models import QueueEntry, ServiceType
+from django.db import transaction, IntegrityError
+from .models import QueueEntry, ServiceType, Department
 from apps.audit.models import AuditLog
 from apps.accounts.decorators import require_permission
+from apps.accounts.models import APIKey
 
 logger = logging.getLogger(__name__)
 
 def api_key_required(view_func):
+    """Verify API key from database before allowing kiosk access."""
     @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        api_key = request.headers.get("X-KIOSK-API-KEY") or request.POST.get("api_key") or request.GET.get("api_key")
-        if not api_key or api_key != settings.KIOSK_API_KEY:
-            logger.warning(f"Unauthorized access attempt to {request.path} from {request.META.get('REMOTE_ADDR')}")
-            # Log to audit trail
+        api_key = (
+            request.headers.get("X-KIOSK-API-KEY") or 
+            request.headers.get("X-API-Key") or 
+            request.POST.get("api_key") or 
+            request.GET.get("api_key")
+        )
+        
+        if not api_key:
+            logger.warning(f"Unauthorized access attempt (missing key) to {request.path} from {request.META.get('REMOTE_ADDR')}")
+            AuditLog.log(
+                action=AuditLog.Action.UNAUTHORIZED_ACCESS,
+                user=None,
+                object_type='API',
+                object_id=0,
+                object_name='Kiosk API',
+                description=f"Missing API key attempt on {request.path}",
+                request=request
+            )
+            return JsonResponse({"error": "Unauthorized: Missing API Key"}, status=403)
+        
+        try:
+            # Check database for valid API key
+            api_key_obj = APIKey.objects.get(key=api_key, is_active=True)
+            
+            # Update last_used_at timestamp
+            api_key_obj.last_used_at = timezone.now()
+            api_key_obj.save(update_fields=['last_used_at'])
+            
+            # Log successful API key use
+            AuditLog.log(
+                action=AuditLog.Action.API_KEY_USED,
+                user=None,
+                object_type='API',
+                object_id=0,
+                object_name=api_key_obj.name,
+                description=f"API authentication successful - {request.method} {request.path}",
+                request=request
+            )
+            
+        except APIKey.DoesNotExist:
+            logger.warning(f"Unauthorized access attempt (invalid key) to {request.path} from {request.META.get('REMOTE_ADDR')}")
             AuditLog.log(
                 action=AuditLog.Action.UNAUTHORIZED_ACCESS,
                 user=None,
@@ -30,17 +71,8 @@ def api_key_required(view_func):
                 description=f"Invalid API key attempt on {request.path}",
                 request=request
             )
-            return JsonResponse({"error": "Unauthorized: Invalid or missing API Key"}, status=403)
+            return JsonResponse({"error": "Unauthorized: Invalid or inactive API Key"}, status=403)
         
-        # Log successful API key use
-        AuditLog.log(
-            action=AuditLog.Action.API_KEY_USED,
-            user=None,
-            object_type='API',
-            object_id=0,
-            object_name=f"{request.path}",
-            request=request
-        )
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -58,7 +90,7 @@ def throttle_kiosk(view_func):
     return wrapper
 
 @csrf_exempt  # Kiosk devices don't handle CSRF tokens
-# @api_key_required  # Removed to allow public kiosk form access - use create_queue_entry_public for this
+@api_key_required  # Internal kiosk endpoint - API key required
 @throttle_kiosk
 def create_queue_entry(request):
     if request.method == "POST":
@@ -69,44 +101,56 @@ def create_queue_entry(request):
                 return JsonResponse({"error": "Missing service_type"}, status=400)
 
             service_type = get_object_or_404(ServiceType, id=service_type_id)
-
-            # enforce per-department daily capacity if configured
             dept = getattr(service_type, "department", None)
-            if dept and getattr(dept, "max_entries_per_day", 0) > 0:
-                dept_count = QueueEntry.objects.filter(
-                    department=dept,
-                    created_at__date=timezone.now().date()
-                ).count()
-                if dept_count >= dept.max_entries_per_day:
-                    logger.info(f"Capacity reached for department: {dept.name}")
-                    return JsonResponse({"error": "Department capacity reached for today."}, status=429)
 
-            # generate number (e.g., ST-001)
-            count_today = QueueEntry.objects.filter(
-                service_type=service_type,
-                created_at__date=timezone.now().date()
-            ).count() + 1
+            retry_count = 0
+            max_retries = 5
 
-            queue_number = f"{service_type.name[:2].upper()}-{count_today:03d}"
+            while retry_count < max_retries:
+                try:
+                    with transaction.atomic():
+                        # enforce per-department daily capacity if configured
+                        if dept and getattr(dept, "max_entries_per_day", 0) > 0:
+                            dept_count = QueueEntry.objects.filter(
+                                department=dept,
+                                created_at__date=timezone.now().date()
+                            ).count()
+                            if dept_count >= dept.max_entries_per_day:
+                                logger.info(f"Capacity reached for department: {dept.name}")
+                                return JsonResponse({"error": "Department capacity reached for today."}, status=429)
 
-            # create entry
-            entry = QueueEntry.objects.create(
-                service_type=service_type,
-                department=dept,
-                queue_number=queue_number,
-                qr_code_data=str(uuid.uuid4()),
-            )
-            entry.save()
-            logger.info(f"New queue entry created: {entry.queue_number} for {service_type.name}")
+                        # generate number using model method (e.g., ST-0001)
+                        queue_number = service_type.generate_queue_number()
+
+                        # create entry
+                        entry = QueueEntry.objects.create(
+                            service_type=service_type,
+                            department=dept,
+                            queue_number=queue_number,
+                            qr_code_data=str(uuid.uuid4()),
+                        )
+                        logger.info(f"New queue entry created: {entry.queue_number} for {service_type.name}")
+                        
+                        return JsonResponse({
+                            "id": entry.id,
+                            "queue_number": entry.queue_number,
+                            "service_type": service_type.name,
+                            "status": entry.status,
+                            "created_at": entry.created_at,
+                            "qr_code": entry.qr_code_data,
+                        }, status=201)
+                except IntegrityError:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        sleep_time = (10 * (2 ** retry_count)) / 1000.0
+                        time.sleep(sleep_time)
+                        logger.debug(f"Retry attempt {retry_count}/{max_retries} for queue entry after {sleep_time*1000:.0f}ms")
+                        continue
+                    else:
+                        logger.warning(f"Failed to create ticket after {max_retries} retries due to IntegrityError")
             
-            return JsonResponse({
-                "id": entry.id,
-                "queue_number": entry.queue_number,
-                "service_type": service_type.name,
-                "status": entry.status,
-                "created_at": entry.created_at,
-                "qr_code": entry.qr_code_data,
-            }, status=201)
+            return JsonResponse({"error": "Failed to create ticket after retries"}, status=500)
+
         except Exception as e:
             logger.exception(f"Error creating queue entry: {str(e)}")
             return JsonResponse({"error": "Internal server error"}, status=500)
@@ -143,28 +187,28 @@ def create_queue_entry_public(request):
             service_type = get_object_or_404(ServiceType, id=service_type_id)
             dept = service_type.department
 
-            # Enforce per-department daily capacity if configured
-            if dept and getattr(dept, "max_entries_per_day", 0) > 0:
-                dept_count = QueueEntry.objects.filter(
-                    department=dept,
-                    created_at__date=timezone.now().date()
-                ).count()
-                if dept_count >= dept.max_entries_per_day:
-                    logger.info(f"Capacity reached for department: {dept.name}")
-                    return JsonResponse({"error": "Department capacity reached for today."}, status=429)
-
-            # Retry logic for queue number uniqueness
+            # Retry logic for queue number uniqueness and capacity check
             from django.db import transaction
-            for _ in range(3):
+            import time
+            
+            retry_count = 0
+            max_retries = 5
+            
+            while retry_count < max_retries:
                 try:
                     with transaction.atomic():
-                        # Generate queue number
-                        count_today = QueueEntry.objects.filter(
-                            service_type=service_type,
-                            created_at__date=timezone.now().date()
-                        ).count() + 1
+                        # Check capacity INSIDE transaction to prevent race condition
+                        if dept and getattr(dept, "max_entries_per_day", 0) > 0:
+                            dept_count = QueueEntry.objects.filter(
+                                department=dept,
+                                created_at__date=timezone.now().date()
+                            ).count()
+                            if dept_count >= dept.max_entries_per_day:
+                                logger.info(f"Capacity reached for department: {dept.name}")
+                                return JsonResponse({"error": "Department capacity reached for today."}, status=429)
                         
-                        queue_number = f"{service_type.name[:2].upper()}-{count_today:03d}"
+                        # Generate queue number using model method
+                        queue_number = service_type.generate_queue_number()
                         
                         # Create entry
                         entry = QueueEntry.objects.create(
@@ -204,8 +248,15 @@ def create_queue_entry_public(request):
                             "qr_code_url": f"/queues/qr/{entry.id}/",
                         }, status=201)
                 except IntegrityError:
-                    logger.debug(f"Retry attempt for queue entry due to IntegrityError")
-                    continue
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        # Exponential backoff: 10ms, 20ms, 40ms, 80ms
+                        sleep_time = (10 * (2 ** retry_count)) / 1000.0
+                        time.sleep(sleep_time)
+                        logger.debug(f"Retry attempt {retry_count}/{max_retries} for queue entry after {sleep_time*1000:.0f}ms")
+                        continue
+                    else:
+                        logger.warning(f"Failed to create ticket after {max_retries} retries due to IntegrityError")
             
             return JsonResponse({"error": "Failed to create ticket after retries"}, status=500)
         
@@ -216,11 +267,6 @@ def create_queue_entry_public(request):
             return JsonResponse({"error": "Internal server error"}, status=500)
 
     return JsonResponse({"error": "Invalid request"}, status=405)
-
-
-from django.template.loader import render_to_string
-from django.http import JsonResponse
-from .models import QueueEntry
 
 
 @login_required
@@ -278,19 +324,37 @@ def update_queue_entry(request, entry_id):
             )
             return JsonResponse({"error": "Permission denied"}, status=403)
     else:
-        # Check for API key
-        api_key = request.headers.get("X-KIOSK-API-KEY") or request.POST.get("api_key") or request.GET.get("api_key")
-        if not api_key or api_key != settings.KIOSK_API_KEY:
-            logger.warning(f"Unauthorized update attempt to {request.path} from {request.META.get('REMOTE_ADDR')}")
+        # Check for API key in database (consistent with create_queue_entry)
+        api_key = (
+            request.headers.get("X-KIOSK-API-KEY") or 
+            request.headers.get("X-API-Key") or 
+            request.POST.get("api_key") or 
+            request.GET.get("api_key")
+        )
+        
+        is_valid_key = False
+        if api_key:
+            try:
+                api_key_obj = APIKey.objects.get(key=api_key, is_active=True)
+                is_valid_key = True
+                # Update last_used_at timestamp
+                api_key_obj.last_used_at = timezone.now()
+                api_key_obj.save(update_fields=['last_used_at'])
+            except APIKey.DoesNotExist:
+                pass
+
+        if not is_valid_key:
+            logger.warning(f"Unauthorized update attempt (invalid/missing key) to {request.path} from {request.META.get('REMOTE_ADDR')}")
             AuditLog.log(
                 action=AuditLog.Action.UNAUTHORIZED_ACCESS,
                 user=None,
                 object_type='QueueEntry',
                 object_id=entry_id,
                 object_name=f"QueueEntry #{entry_id}",
+                description=f"Invalid API key attempt on {request.path}",
                 request=request
             )
-            return JsonResponse({"error": "Unauthorized"}, status=403)
+            return JsonResponse({"error": "Unauthorized: Invalid or missing API Key"}, status=403)
 
     entry = get_object_or_404(QueueEntry, id=entry_id)
     old_status = entry.status
@@ -323,7 +387,7 @@ def update_queue_entry(request, entry_id):
         if request.headers.get("x-requested-with") == "XMLHttpRequest":
             return JsonResponse({"id": entry.id, "status": entry.status})
 
-    return redirect("dashboard")
+    return redirect("dashboard_v4")
 
 
 @login_required
@@ -397,8 +461,6 @@ def dashboard(request):
     })
 
 
-from django.shortcuts import render, redirect, get_object_or_404
-
 def update_status(request, entry_id, status):
     """Update queue entry status - internal function."""
     entry = get_object_or_404(QueueEntry, id=entry_id)
@@ -407,7 +469,7 @@ def update_status(request, entry_id, status):
         from django.utils import timezone
         entry.served_at = timezone.now()
     entry.save()
-    return redirect("dashboard")
+    return redirect("dashboard_v4")
 
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -636,30 +698,42 @@ from datetime import timedelta
 
 
 def department_selection(request):
-    """Allow user to select their department."""
-    departments = Department.objects.all()
+    """Allow user to select their department with optimized queries."""
+    from django.db.models import Count, Q, Subquery, OuterRef, Max, Prefetch
+    
+    # Get all departments with annotated counts - single optimized query
+    # We use Prefetch to get only the latest SERVED entry to avoid loading thousands of entries
+    departments = Department.objects.annotate(
+        waiting_count=Count(
+            'queueentry',
+            filter=Q(queueentry__status=QueueEntry.Status.WAITING)
+        )
+    ).prefetch_related(
+        Prefetch(
+            'queueentry_set',
+            queryset=QueueEntry.objects.filter(status=QueueEntry.Status.SERVED).order_by('-served_at'),
+            to_attr='latest_served_entries'
+        )
+    ).all()
+    
+    # Process departments to add computed fields
     for dept in departments:
-        # Get currently serving entry (status SERVED, most recent)
-        serving = QueueEntry.objects.filter(
-            department=dept,
-            status=QueueEntry.Status.SERVED
-        ).order_by('-served_at').first()
-
         serving_time = None
-        if serving and serving.served_at:
-            time_diff = timezone.now() - serving.served_at
-            serving_time = str(time_diff).split('.')[0]  # HH:MM:SS format
-
-        # Count remaining waiting clients
-        remaining_count = QueueEntry.objects.filter(
-            department=dept,
-            status=QueueEntry.Status.WAITING
-        ).count()
-
-        # attach attributes directly so template can access them on the object
+        currently_served = None
+        
+        # Get the most recent SERVED entry from prefetched data
+        # Since it's ordered by -served_at, the first one is the latest
+        if dept.latest_served_entries:
+            serving = dept.latest_served_entries[0]
+            if serving.served_at:
+                time_diff = timezone.now() - serving.served_at
+                serving_time = str(time_diff).split('.')[0]  # HH:MM:SS format
+            currently_served = serving
+        
+        # Attach attributes - use annotated count for efficiency
         setattr(dept, "serving_time", serving_time)
-        setattr(dept, "remaining_clients", remaining_count)
-        setattr(dept, "currently_served", serving)
+        setattr(dept, "remaining_clients", dept.waiting_count)
+        setattr(dept, "currently_served", currently_served)
 
     return render(request, "q_queues/department_selection.html", {"departments": departments})
 
@@ -688,42 +762,6 @@ def print_ticket(entry):
     except Exception:
         # printer failures shouldn't kill request flow; swallow or log in future
         pass
-
-
-
-from django.template.loader import render_to_string
-from django.http import JsonResponse
-from .models import QueueEntry
-
-from django.http import JsonResponse
-from django.template.loader import render_to_string
-from django.contrib.auth.decorators import login_required
-
-
-@login_required
-def queue_list(request):
-    user = request.user
-
-    if user.has_permission('configure_system'):
-        entries = QueueEntry.objects.exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
-    else:
-        entries = QueueEntry.objects.filter(
-            department=user.department
-        ).exclude(status=QueueEntry.Status.SERVED).order_by("-created_at")[:10]
-
-    served_entries = QueueEntry.objects.filter(
-        department=user.department if not user.has_permission('configure_system') else None,
-        status=QueueEntry.Status.SERVED
-    ).order_by("-served_at")[:2]
-
-    html = render_to_string("q_queues/partials/queue_table.html", {"entries": entries}, request=request)
-
-    return JsonResponse({
-        "html": html,
-        "served": [e.queue_number for e in served_entries],
-        "latest_id": entries[0].id if entries else None,
-    })
-
 
 
 
@@ -764,7 +802,7 @@ def update_queue_entry(request, entry_id):
         if request.headers.get("x-requested-with") == "XMLHttpRequest":
             return JsonResponse({"id": entry.id, "status": entry.status})
 
-    return redirect("dashboard")
+    return redirect("dashboard_v4")
 
 
 # ============================================
@@ -961,7 +999,7 @@ def api_admin_analytics_kpi(request):
         'total_tickets': total_tickets,
         'completion_rate': completion_rate,
         'avg_resolution_time': avg_resolution_minutes,
-        'customer_satisfaction': round(avg_satisfaction, 1)
+        'satisfaction_score': round(avg_satisfaction, 1)
     })
 
 
@@ -1037,12 +1075,12 @@ def api_admin_analytics_charts(request):
     }
     
     return JsonResponse({
-        'volume_chart': volume_chart,
-        'department_chart': dept_chart,
-        'service_chart': service_chart,
-        'resolution_chart': resolution_chart,
-        'productivity_chart': productivity_chart,
-        'satisfaction_chart': satisfaction_chart
+        'ticket_volume': volume_chart,
+        'dept_performance': dept_chart,
+        'service_dist': service_chart,
+        'resolution_time': resolution_chart,
+        'staff_productivity': productivity_chart,
+        'satisfaction_trend': satisfaction_chart
     })
 
 
@@ -1095,7 +1133,11 @@ def api_admin_analytics_tables(request):
         avg_wait_minutes = int(avg_wait.total_seconds() / 60) if isinstance(avg_wait, timedelta) else 0
         staff_perf_table.append({'name': staff['department__name'] or 'Unassigned', 'tickets_served': staff['tickets_served'], 'avg_wait_time': avg_wait_minutes})
     
-    return JsonResponse({'departments': dept_table, 'services': service_table, 'staff': staff_perf_table})
+    return JsonResponse({
+        'departments': dept_table,
+        'services': service_table,
+        'staff': staff_perf_table
+    })
 
 
 @login_required
@@ -1136,6 +1178,11 @@ def api_admin_analytics_audit(request):
 def dashboard_v4(request):
     """Enhanced Staff Dashboard v4"""
     user = request.user
+    
+    # Non-admin users must have a department assigned
+    if not user.has_permission('configure_system') and not user.department:
+        return redirect('department_selection')
+    
     context = {
         'user': user,
         'department': user.department if not user.has_permission('configure_system') else None,

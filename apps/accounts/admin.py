@@ -1,6 +1,38 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, CustomRole, CustomPermission
+from .models import User, CustomRole, CustomPermission, APIKey
+
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'key_preview', 'is_active', 'created_by', 'created_at', 'last_used_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'key')
+    readonly_fields = ('key', 'created_at', 'last_used_at', 'created_by')
+    
+    fieldsets = (
+        ('Key Info', {
+            'fields': ('name', 'key', 'is_active')
+        }),
+        ('Usage', {
+            'fields': ('created_by', 'created_at', 'last_used_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def key_preview(self, obj):
+        """Show first 10 chars of key for security"""
+        return f"{obj.key[:10]}..." if obj.key else "N/A"
+    key_preview.short_description = 'Key (preview)'
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # Creating new API key
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    def has_delete_permission(self, request, obj=None):
+        """Admins can delete API keys"""
+        return request.user.is_superuser or request.user.has_permission('manage_settings')
 
 
 @admin.register(CustomPermission)

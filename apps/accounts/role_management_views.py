@@ -282,19 +282,19 @@ def assign_role(request, user_id):
     user = get_object_or_404(User, id=user_id)
     
     if request.method == 'POST':
-        old_custom_role = user.custom_role.slug if user.custom_role else None
+        old_custom_role = user.role.slug if user.role else None
         
-        # All roles are now CustomRole instances
-        role_id = request.POST.get('custom_role')
+        role_id = request.POST.get('role_id')
         if not role_id:
+            roles = CustomRole.objects.filter(is_active=True)
             return render(request, 'accounts/assign_role.html', {
                 'user': user,
-                'custom_roles': CustomRole.objects.filter(is_active=True),
+                'roles': roles,
                 'error': 'Please select a role'
             })
         
-        custom_role = get_object_or_404(CustomRole, id=role_id)
-        user.custom_role = custom_role
+        role = get_object_or_404(CustomRole, id=role_id)
+        user.role = role
         user.save()
         
         # Clear permission cache since role changed
@@ -307,17 +307,18 @@ def assign_role(request, user_id):
             object_type='User',
             object_id=user.id,
             object_name=user.username,
-            old_values={'custom_role': old_custom_role},
-            new_values={'custom_role': user.custom_role.slug},
-            description=f"Changed {user.username}'s role to {user.custom_role.name}",
+            old_values={'role': old_custom_role},
+            new_values={'role': user.role.slug},
+            description=f"Changed {user.username}'s role to {user.role.name}",
             request=request
         )
         
-        return redirect('admin:accounts_user_change', user.id)
+        return redirect('user_list')
     
+    roles = CustomRole.objects.filter(is_active=True)
     context = {
         'user': user,
-        'custom_roles': CustomRole.objects.filter(is_active=True),
+        'roles': roles,
     }
     
     return render(request, 'accounts/assign_role.html', context)

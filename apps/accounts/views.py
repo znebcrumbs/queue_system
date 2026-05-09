@@ -6,11 +6,14 @@ from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect
 from django.http import JsonResponse
 from django.contrib.auth import get_user_model
+from .decorators import require_permission
 
 User = get_user_model()
 
+@require_permission('manage_users')
 def user_list(request):
-    users = User.objects.all().values("id", "username", "email", "role")
+    """List all users - requires manage_users permission."""
+    users = User.objects.all().values("id", "username", "email", "custom_role__name")
     return JsonResponse(list(users), safe=False)
 
 

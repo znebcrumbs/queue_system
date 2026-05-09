@@ -19,9 +19,9 @@ class ServiceType(models.Model):
         count_today = QueueEntry.objects.filter(
         service_type=self, created_at__date=today
                 ).count()
-    # roll over every 256 tickets
-        number = (count_today % 256) + 1
-        return f"{self.get_prefix()}-{number:01d}"
+    # Use 4-digit format with higher limit (10000 instead of 256)
+        number = (count_today % 10000) + 1
+        return f"{self.get_prefix()}-{number:04d}"
 
 #prio class
 
@@ -72,6 +72,13 @@ class QueueEntry(models.Model):
                 fields=["queue_number", "service_type", "created_at"],
                 name="unique_queue_per_service_per_day"
             )
+        ]
+        indexes = [
+            models.Index(fields=['created_at', 'status'], name='idx_created_status'),
+            models.Index(fields=['department', 'status'], name='idx_dept_status'),
+            models.Index(fields=['service_type', 'created_at'], name='idx_service_created'),
+            models.Index(fields=['department', 'created_at', 'status'], name='idx_dept_created_status'),
+            models.Index(fields=['created_date'], name='idx_created_date'),
         ]
         ordering = ["-created_at"]
 
