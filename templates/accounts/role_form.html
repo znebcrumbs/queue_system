@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Role - Queue System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .permission-category {
+        margin-bottom: 2rem;
+    }
+    
+    .permission-category h5 {
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.75rem;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .permission-item {
+        padding: 0.75rem;
+        border-left: 3px solid transparent;
+        transition: all 0.2s;
+    }
+    
+    .permission-item:hover {
+        background-color: #f8f9fa;
+        border-left-color: #0d6efd;
+    }
+    
+    .permission-item label {
+        margin-bottom: 0;
+        cursor: pointer;
+        font-weight: 500;
+    }
+    
+    .permission-item small {
+        display: block;
+        margin-top: 0.25rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="mb-1">
+                <i class="fas fa-plus-circle"></i> Create New Role
+            </h1>
+            <p class="text-muted">Set up a custom role with specific permissions</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'role_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        <strong><i class="fas fa-exclamation-circle"></i></strong> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Basic Info -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Role Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Role Name <span class="text-danger">*</span></label>
+                            <input 
+                                type="text" 
+                                name="name" 
+                                id="name"
+                                class="form-control" 
+                                placeholder="e.g., Supervisor, Data Entry, etc."
+                                required
+                            >
+                            <small class="form-text text-muted">A descriptive name for this role</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="slug" class="form-label">Slug <span class="text-danger">*</span></label>
+                            <input 
+                                type="text" 
+                                name="slug" 
+                                id="slug"
+                                class="form-control" 
+                                placeholder="e.g., supervisor, data_entry"
+                                pattern="[a-z0-9_-]+"
+                                required
+                            >
+                            <small class="form-text text-muted">Unique identifier (lowercase, hyphens/underscores only). Auto-generated if left blank.</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea 
+                                name="description" 
+                                id="description"
+                                class="form-control" 
+                                rows="3"
+                                placeholder="Brief description of this role's purpose..."
+                            ></textarea>
+                            <small class="form-text text-muted">Optional. Helps team members understand what this role is for.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Permissions -->
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Assign Permissions</h5>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllPermissions()">
+                                <i class="fas fa-check-double"></i> Select All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            <i class="fas fa-info-circle"></i>
+                            Click on permission names to expand descriptions. Click category headers to select all in that category.
+                        </p>
+
+                        <div class="row">
+                            {% for category, perms in permissions_by_category %}
+                            <div class="col-md-6">
+                                <div class="permission-category">
+                                    <h5 class="select-category" data-category="{{ category }}">
+                                        <i class="fas fa-folder"></i> {{ category|capfirst }}
+                                    </h5>
+                                    {% for perm in perms %}
+                                    <div class="permission-item">
+                                        <label class="form-check-label">
+                                            <input 
+                                                type="checkbox" 
+                                                name="permissions" 
+                                                value="{{ perm.id }}"
+                                                class="form-check-input permission-checkbox"
+                                                data-category="{{ category }}"
+                                            >
+                                            {{ perm.name }}
+                                        </label>
+                                        <small>{{ perm.description }}</small>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="col-lg-4">
+                <div class="card sticky-top" style="top: 1rem;">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Selected Permissions</small>
+                            <h3 class="mb-0">
+                                <span id="permission-count">0</span>
+                            </h3>
+                        </div>
+                        
+                        <div class="alert alert-info mb-3">
+                            <strong><i class="fas fa-lightbulb"></i> Tip:</strong>
+                            You can modify permissions anytime after creating the role.
+                        </div>
+                        
+                        <hr>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                            <i class="fas fa-check"></i> Create Role
+                        </button>
+                        <a href="{% url 'role_list' %}" class="btn btn-outline-secondary w-100">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-generate slug from name
+        const nameInput = document.getElementById('name');
+        const slugInput = document.getElementById('slug');
+        
+        nameInput.addEventListener('change', function() {
+            if (!slugInput.value) {
+                slugInput.value = nameInput.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_|_$/g, '');
+            }
+        });
+        
+        // Update permission count
+        const permCheckboxes = document.querySelectorAll('input[name="permissions"]');
+        function updateCount() {
+            const count = Array.from(permCheckboxes).filter(cb => cb.checked).length;
+            document.getElementById('permission-count').textContent = count;
+        }
+        
+        permCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateCount);
+        });
+        
+        // Category header click to select all in category
+        document.querySelectorAll('.select-category').forEach(header => {
+            header.style.cursor = 'pointer';
+            header.addEventListener('click', function() {
+                const category = this.dataset.category;
+                const categoryCheckboxes = document.querySelectorAll(
+                    `input[data-category="${category}"]`
+                );
+                const allChecked = Array.from(categoryCheckboxes).every(cb => cb.checked);
+                categoryCheckboxes.forEach(cb => cb.checked = !allChecked);
+                updateCount();
+            });
+        });
+        
+        updateCount();
+    });
+    
+    function toggleAllPermissions() {
+        const allCheckboxes = document.querySelectorAll('input[name="permissions"]');
+        const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+        allCheckboxes.forEach(cb => cb.checked = !allChecked);
+        document.getElementById('permission-count').textContent = 
+            Array.from(allCheckboxes).filter(cb => cb.checked).length;
+    }
+</script>
+{% endblock %}

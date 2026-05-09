@@ -1,0 +1,85 @@
+<!-- Sidebar Navigation Component -->
+{% load permission_filters %}
+<div class="sidebar-wrapper">
+    <!-- Sidebar Toggle Button (Mobile) -->
+    <button class="btn btn-dark sidebar-toggle d-lg-none" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar -->
+    <aside class="sidebar bg-dark text-white" id="sidebar">
+        <!-- Close Button (Mobile) -->
+        <button class="btn-close btn-close-white d-lg-none ms-auto" id="sidebarClose"></button>
+
+        <!-- Logo/Brand -->
+        <div class="sidebar-header">
+            <a class="sidebar-brand" href="{% if user.is_authenticated %}{% url 'dashboard' %}{% else %}{% url 'kiosk_v4' %}{% endif %}">
+                <i class="fas fa-tasks"></i>
+                <span class="sidebar-brand-text">Queue System</span>
+            </a>
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="sidebar-nav">
+            <!-- Dashboard Link -->
+            {% if user.is_authenticated %}
+                <a class="sidebar-item" href="{% url 'dashboard' %}">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+
+                <!-- Admin Links (only for admins) -->
+                {% if user.is_superuser or user|has_permission:"configure_system" %}
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Administration</div>
+                        <a class="sidebar-item" href="{% url 'admin_analytics_dashboard' %}">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Analytics</span>
+                        </a>
+                        <a class="sidebar-item" href="{% url 'role_list' %}">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Roles</span>
+                        </a>
+                        <a class="sidebar-item" href="{% url 'permission_list' %}">
+                            <i class="fas fa-key"></i>
+                            <span>Permissions</span>
+                        </a>
+                        <a class="sidebar-item" href="/admin/">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Django Admin</span>
+                        </a>
+                    </div>
+                {% endif %}
+
+                <!-- Reports Link -->
+                <a class="sidebar-item" href="{% url 'reports_dashboard' %}">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reports</span>
+                </a>
+
+                <!-- User Menu -->
+                <div class="sidebar-footer">
+                    <a class="sidebar-item" href="/accounts/profile/">
+                        <i class="fas fa-user"></i>
+                        <span>{{ user.username }}</span>
+                    </a>
+                    <a class="sidebar-item" href="{% url 'logout' %}">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            {% else %}
+                <!-- Login Link -->
+                <div class="sidebar-footer">
+                    <a class="sidebar-item" href="{% url 'login' %}">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Login</span>
+                    </a>
+                </div>
+            {% endif %}
+        </nav>
+    </aside>
+
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+</div>

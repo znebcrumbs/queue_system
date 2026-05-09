@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.queues',
     'apps.survey',
+    'apps.audit',
     'rest_framework',
 ]
 
@@ -78,6 +79,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.accounts.api_security.APISecurityMiddleware',  # Custom API security
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -152,6 +154,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -161,3 +167,43 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/queues/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+# ============================================
+# SECURITY HEADERS & CONFIG
+# ============================================
+
+# Framebusting - prevent clickjacking
+X_FRAME_OPTIONS = 'DENY'
+
+# Prevent MIME type sniffing
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Enable XSS filter in browsers
+SECURE_BROWSER_XSS_FILTER = True
+
+# Control referrer information
+REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Permissions Policy (formerly Feature Policy)
+PERMISSIONS_POLICY = {
+    'accelerometer': [],
+    'camera': [],
+    'geolocation': [],
+    'gyroscope': [],
+    'magnetometer': [],
+    'microphone': [],
+    'payment': [],
+    'usb': [],
+}
+
+# Cache control for static assets
+SECURE_HSTS_SECONDS = 0  # Set to 31536000 in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # True in production
+SECURE_HSTS_PRELOAD = False  # True in production
+
+# Default security for all responses
+SECURE_SSL_REDIRECT = False  # Override in prod.py to True
+
+# Additional CSRF settings
+CSRF_COOKIE_HTTPONLY = False  # Set to True in prod
+CSRF_TRUSTED_ORIGINS = []  # Configure per environment

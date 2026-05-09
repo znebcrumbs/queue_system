@@ -45,7 +45,6 @@ class Command(BaseCommand):
                 defaults={
                     'prefix': svc_info['prefix'],
                     'department': dept,
-                    'assigned_role': User.Role.MIS
                 }
             )
             if created:
@@ -55,12 +54,15 @@ class Command(BaseCommand):
 
         # 3. Create initial Admin User if it doesn't exist
         if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser(
+            from apps.accounts.models import CustomRole
+            admin_role = CustomRole.objects.get(slug='admin')
+            admin_user = User.objects.create_superuser(
                 username='admin',
                 email='admin@example.com',
-                password='adminpassword',
-                role=User.Role.ADMIN
+                password='adminpassword'
             )
+            admin_user.custom_role = admin_role
+            admin_user.save()
             self.stdout.write(self.style.SUCCESS('Created superuser: admin'))
         else:
             self.stdout.write('Superuser "admin" already exists')

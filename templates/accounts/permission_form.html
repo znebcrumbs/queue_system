@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Permission - Queue System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-box {
+        background: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0.25rem;
+    }
+    
+    .category-option {
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s;
+    }
+    
+    .category-option:hover {
+        background: #f0f0f0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="mb-1">
+                <i class="fas fa-plus-circle"></i> Create New Permission
+            </h1>
+            <p class="text-muted">Define a custom permission for advanced access control</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'permission_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        <strong><i class="fas fa-exclamation-circle"></i></strong> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Permission Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Permission Name <span class="text-danger">*</span></label>
+                            <input 
+                                type="text" 
+                                name="name" 
+                                id="name"
+                                class="form-control" 
+                                placeholder="e.g., Export Advanced Reports"
+                                required
+                            >
+                            <small class="form-text text-muted">A human-readable name for this permission</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="slug" class="form-label">Slug <span class="text-danger">*</span></label>
+                            <input 
+                                type="text" 
+                                name="slug" 
+                                id="slug"
+                                class="form-control" 
+                                placeholder="e.g., export_advanced_reports"
+                                pattern="[a-z0-9_]+"
+                                required
+                            >
+                            <small class="form-text text-muted">
+                                Unique identifier used in code (lowercase with underscores). 
+                                Pattern: <code>action_resource</code> (e.g., <code>export_reports</code>, <code>create_ticket</code>)
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea 
+                                name="description" 
+                                id="description"
+                                class="form-control" 
+                                rows="3"
+                                placeholder="What does this permission allow users to do?"
+                            ></textarea>
+                            <small class="form-text text-muted">Explain the purpose of this permission (optional)</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Category <span class="text-danger">*</span></label>
+                            <select name="category" id="category" class="form-select" required>
+                                <option value="">-- Select a category --</option>
+                                {% for value, label in categories %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Organize permissions by category for better UI grouping</small>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-check"></i> Create Permission
+                        </button>
+                        <a href="{% url 'permission_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Guidelines -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Guidelines</h5>
+                </div>
+                <div class="card-body">
+                    <div class="info-box">
+                        <strong>Naming Convention</strong>
+                        <p class="mb-0 mt-2">Use lowercase with underscores: <code>action_resource</code></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Common Actions:</strong>
+                        <ul class="small mb-0">
+                            <li><code>view_</code> - View/List</li>
+                            <li><code>create_</code> - Create new</li>
+                            <li><code>edit_</code> - Modify</li>
+                            <li><code>delete_</code> - Remove</li>
+                            <li><code>manage_</code> - Full control</li>
+                            <li><code>export_</code> - Data export</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Examples:</strong>
+                        <ul class="small mb-0">
+                            <li><code>view_audit_logs</code></li>
+                            <li><code>export_tickets</code></li>
+                            <li><code>manage_departments</code></li>
+                            <li><code>reset_passwords</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Built-in Permissions -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">System Permissions</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">System comes with 30 built-in permissions organized by:</p>
+                    <ul class="small list-unstyled">
+                        <li>📊 Dashboard & Analytics</li>
+                        <li>🎫 Ticket Management</li>
+                        <li>📋 Queue Management</li>
+                        <li>👥 User Management</li>
+                        <li>⚙️ System Configuration</li>
+                        <li>🔐 Audit & Security</li>
+                        <li>📤 Data Export & Import</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const nameInput = document.getElementById('name');
+        const slugInput = document.getElementById('slug');
+        
+        nameInput.addEventListener('change', function() {
+            if (!slugInput.value) {
+                slugInput.value = nameInput.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_|_$/g, '');
+            }
+        });
+    });
+</script>
+{% endblock %}

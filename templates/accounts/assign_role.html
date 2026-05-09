@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Assign Role - Queue System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .role-card-selection {
+        border: 2px solid #e9ecef;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .role-card-selection:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+    }
+    
+    .role-card-selection.selected {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+    }
+    
+    .role-card-selection input[type="radio"] {
+        margin-right: 1rem;
+    }
+    
+    .badge-permissions {
+        display: inline-block;
+        background: #e9ecef;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="mb-1">
+                <i class="fas fa-user-check"></i> Assign Role
+            </h1>
+            <p class="text-muted">Assign a role to <strong>{{ user.username }}</strong> ({{ user.get_full_name|default:user.email }})</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        <strong><i class="fas fa-exclamation-circle"></i></strong> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show">
+        <strong><i class="fas fa-check-circle"></i></strong> {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <form method="post" id="assignRoleForm">
+                {% csrf_token %}
+                
+                <!-- Current Role Info -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Current Assignment</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if user.role %}
+                        <p class="mb-1">
+                            <strong>Current Role:</strong> 
+                            <span class="badge bg-primary">{{ user.role.name }}</span>
+                        </p>
+                        <p class="mb-0 small text-muted">
+                            Assigned on: {{ user.role.created_at|date:"M d, Y" }}
+                        </p>
+                        {% else %}
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            No role currently assigned
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Available Roles -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Select New Role</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if roles %}
+                            {% for role in roles %}
+                            <label class="role-card-selection {% if user.role.id == role.id %}selected{% endif %}">
+                                <input 
+                                    type="radio" 
+                                    name="role_id" 
+                                    value="{{ role.id }}"
+                                    class="role-selection"
+                                    {% if user.role.id == role.id %}checked{% endif %}
+                                >
+                                
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">{{ role.name }}</h6>
+                                        <p class="mb-2 small text-muted">{{ role.description|default:"No description" }}</p>
+                                        
+                                        <div class="mb-0">
+                                            {% if role.is_system %}
+                                            <span class="badge bg-info me-2">System</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary me-2">Custom</span>
+                                            {% endif %}
+                                            <span class="badge-permissions">{{ role.permissions.count }} permissions</span>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if user.role.id == role.id %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check"></i> Current
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </label>
+                            {% endfor %}
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            No roles available to assign
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Role Permissions Preview -->
+                <div class="card mb-4" id="permissionsPreview" style="display: none;">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Role Permissions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="permissionsList"></div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="mb-4">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-check"></i> Assign Role
+                    </button>
+                    <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right Panel: User Info -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">User Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Username</small>
+                        <strong>{{ user.username }}</strong>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Full Name</small>
+                        <strong>{{ user.get_full_name|default:"Not set" }}</strong>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Email</small>
+                        <strong>{{ user.email }}</strong>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Status</small>
+                        {% if user.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <small class="text-muted d-block">Joined</small>
+                        <strong>{{ user.date_joined|date:"M d, Y" }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">About Roles</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small mb-2">
+                        Roles define what actions a user can perform in the system. Each role has specific permissions assigned to it.
+                    </p>
+                    <p class="small mb-0 text-muted">
+                        <strong>Note:</strong> Users can only have one role at a time. Assigning a new role will replace their current role.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('assignRoleForm');
+        const roleInputs = document.querySelectorAll('input[name="role_id"]');
+        const permissionsPreview = document.getElementById('permissionsPreview');
+        const permissionsList = document.getElementById('permissionsList');
+        
+        // Fetch role data
+        const rolesData = {
+            {% for role in roles %}
+            {{ role.id }}: {
+                name: '{{ role.name }}',
+                permissions: [
+                    {% for perm in role.permissions.all %}
+                    '{{ perm.name }}'{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ]
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        };
+        
+        roleInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                const roleId = this.value;
+                const roleData = rolesData[roleId];
+                
+                if (roleData && roleData.permissions.length > 0) {
+                    // Show permissions preview
+                    permissionsList.innerHTML = roleData.permissions
+                        .map(p => `<span class="badge bg-light text-dark me-2 mb-2">${p}</span>`)
+                        .join('');
+                    permissionsPreview.style.display = 'block';
+                } else {
+                    permissionsPreview.style.display = 'none';
+                }
+                
+                // Highlight selected card
+                document.querySelectorAll('.role-card-selection').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                this.closest('.role-card-selection').classList.add('selected');
+            });
+        });
+    });
+</script>
+{% endblock %}

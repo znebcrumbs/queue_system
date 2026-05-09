@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Admin Analytics - Queue Management{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin-analytics.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid admin-analytics-container py-4">
+    
+    <div class="analytics-header">
+        <div>
+            <h1><i class="fas fa-chart-line"></i> Analytics Dashboard</h1>
+            <p class="text-muted">System performance and business intelligence</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary" onclick="AdminAnalytics.exportPDF()">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+        </div>
+    </div>
+
+    
+    <div class="analytics-filters">
+        <h5>Filters</h5>
+        <div class="filter-grid">
+            <div class="filter-item">
+                <label>Start Date:</label>
+                <input type="date" id="filterStartDate" class="form-control">
+            </div>
+            <div class="filter-item">
+                <label>End Date:</label>
+                <input type="date" id="filterEndDate" class="form-control">
+            </div>
+            <div class="filter-item">
+                <label>Department:</label>
+                <select id="filterDepartment" class="form-select">
+                    <option value="">All Departments</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept.id }}">{{ dept.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>Service Type:</label>
+                <select id="filterServiceType" class="form-select">
+                    <option value="">All Services</option>
+                    {% for service in service_types %}
+                        <option value="{{ service.id }}">{{ service.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item align-self-end">
+                <button class="btn btn-primary w-100" onclick="AdminAnalytics.applyFilters()">
+                    <i class="fas fa-filter"></i> Apply Filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon"><i class="fas fa-ticket-alt"></i></div>
+            <div class="kpi-value" id="kpi-total-tickets">0</div>
+            <div class="kpi-label">Total Tickets</div>
+        </div>
+
+        <div class="kpi-card success">
+            <div class="kpi-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="kpi-value" id="kpi-completion-rate">0%</div>
+            <div class="kpi-label">Completion Rate</div>
+        </div>
+
+        <div class="kpi-card warning">
+            <div class="kpi-icon"><i class="fas fa-clock"></i></div>
+            <div class="kpi-value" id="kpi-avg-resolution">0m</div>
+            <div class="kpi-label">Avg Resolution Time</div>
+        </div>
+
+        <div class="kpi-card info">
+            <div class="kpi-icon"><i class="fas fa-star"></i></div>
+            <div class="kpi-value" id="kpi-satisfaction">4.5★</div>
+            <div class="kpi-label">Customer Satisfaction</div>
+        </div>
+    </div>
+
+    <!-- Main Charts Grid -->
+    <div class="charts-section">
+        <h2 class="section-title">Performance Metrics</h2>
+        
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h5>
+                    <i class="fas fa-line-chart"></i> Ticket Volume Trend
+                </h5>
+                <canvas id="ticketVolumeTrendChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h5>
+                    <i class="fas fa-bar-chart"></i> Department Performance
+                </h5>
+                <canvas id="deptPerformanceChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h5>
+                    <i class="fas fa-pie-chart"></i> Service Type Distribution
+                </h5>
+                <canvas id="serviceTypeDistChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h5>
+                    <i class="fas fa-hourglass"></i> Average Resolution Time
+                </h5>
+                <canvas id="resolutionTimeChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h5>
+                    <i class="fas fa-users"></i> Staff Productivity
+                </h5>
+                <canvas id="staffProductivityChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h5>
+                    <i class="fas fa-star"></i> Customer Satisfaction Trend
+                </h5>
+                <canvas id="satisfactionTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Tables -->
+    <div class="tables-section">
+        <h2 class="section-title">Detailed Analytics</h2>
+
+        <!-- Department Performance Table -->
+        <div class="table-container">
+            <h5>
+                <i class="fas fa-building"></i> Department Performance
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-hover" id="deptTable">
+                    <thead>
+                        <tr>
+                            <th>Department</th>
+                            <th>Total Tickets</th>
+                            <th>Completed</th>
+                            <th>Pending</th>
+                            <th>Completion Rate</th>
+                            <th>Avg Wait Time</th>
+                            <th>Avg Resolution Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Service Type Performance Table -->
+        <div class="table-container mt-4">
+            <h5>
+                <i class="fas fa-list"></i> Service Type Performance
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-hover" id="serviceTable">
+                    <thead>
+                        <tr>
+                            <th>Service Type</th>
+                            <th>Total</th>
+                            <th>Completed</th>
+                            <th>Success Rate</th>
+                            <th>Avg Wait Time</th>
+                            <th>Avg Resolution Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Staff Performance Table -->
+        <div class="table-container mt-4">
+            <h5>
+                <i class="fas fa-user-tie"></i> Staff Performance
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-hover" id="staffTable">
+                    <thead>
+                        <tr>
+                            <th>Staff Member</th>
+                            <th>Department</th>
+                            <th>Tickets Processed</th>
+                            <th>Avg Resolution Time</th>
+                            <th>Customer Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="audit-section mt-5">
+        <h2 class="section-title">Recent Activity</h2>
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-sm" id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>User</th>
+                            <th>Object</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="{% static 'css/admin-analytics.css' %}">
+<script src="{% static 'js/admin-analytics.js' %}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        AdminAnalytics.init();
+    });
+</script>
+{% endblock %}
