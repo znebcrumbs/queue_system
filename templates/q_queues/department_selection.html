@@ -27,7 +27,7 @@
 
       {% for dept in departments %}
         <div class="col-md-3 mb-4">
-          <a href="{% url 'kiosk' dept.slug %}" class="text-decoration-none text-dark">
+          <a href="{% url 'kiosk' %}" class="text-decoration-none text-dark">
             <div class="dept-card">
               <div class="dept-title">
                 {% if dept.currently_served %}

@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction, IntegrityError
+import re
 from django.utils import timezone
 from apps.accounts.models import User
 
@@ -177,27 +178,48 @@ class Ticket(models.Model):
         verbose_name_plural = "Tickets"
     
     def save(self, *args, **kwargs):
-        """Auto-generate ticket number and calculate metrics."""
+        """Auto-generate ticket number with retry on unique constraint failures and calculate metrics."""
+        def _compute_metrics():
+            if self.started_at and not self.wait_time_minutes:
+                delta = (self.started_at - self.created_at).total_seconds() / 60
+                self.wait_time_minutes = int(delta)
+            if self.completed_at and not self.resolution_time_minutes:
+                delta = (self.completed_at - self.created_at).total_seconds() / 60
+                self.resolution_time_minutes = int(delta)
+
         if not self.ticket_number:
-            today = timezone.now().date()
-            count = Ticket.objects.filter(
-                created_at__date=today,
-                department=self.department
-            ).count() + 1
-            prefix = self.service_type.prefix or self.service_type.name[:2].upper()
-            self.ticket_number = f"{prefix}-{count:04d}"
-        
-        # Calculate wait time if started
-        if self.started_at and not self.wait_time_minutes:
-            delta = (self.started_at - self.created_at).total_seconds() / 60
-            self.wait_time_minutes = int(delta)
-        
-        # Calculate resolution time if completed
-        if self.completed_at and not self.resolution_time_minutes:
-            delta = (self.completed_at - self.created_at).total_seconds() / 60
-            self.resolution_time_minutes = int(delta)
-        
-        super().save(*args, **kwargs)
+            prefix = (self.service_type.prefix or self.service_type.name[:2]).upper()
+            attempt = 0
+            while True:
+                attempt += 1
+                today = timezone.now().date()
+                last_ticket = Ticket.objects.filter(
+                    created_at__date=today,
+                    department=self.department
+                ).order_by('-created_at').first()
+                if last_ticket and last_ticket.ticket_number:
+                    m = re.search(r'-(\d+)$', last_ticket.ticket_number)
+                    next_num = int(m.group(1)) + 1 if m else Ticket.objects.filter(created_at__date=today, department=self.department).count() + 1
+                else:
+                    next_num = 1
+
+                self.ticket_number = f"{prefix}-{next_num:04d}"
+                _compute_metrics()
+
+                try:
+                    with transaction.atomic():
+                        super(Ticket, self).save(*args, **kwargs)
+                    break
+                except IntegrityError:
+                    # Another process may have created the same ticket_number; retry a few times
+                    if attempt >= 5:
+                        raise
+                    # clear ticket_number and try again
+                    self.ticket_number = None
+                    continue
+        else:
+            _compute_metrics()
+            super().save(*args, **kwargs)
     
     def __str__(self):
         return f"{self.ticket_number} - {self.customer_name}"
