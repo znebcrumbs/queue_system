@@ -834,13 +834,22 @@ def api_dashboard_kpi(request):
     total_tickets_today = all_entries_today.count()
     hours_elapsed = (timezone.now() - timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds() / 3600
     throughput = round(total_tickets_today / max(hours_elapsed, 1), 2)
+
+    in_progress_qs = QueueEntry.objects.filter(status=QueueEntry.Status.IN_PROGRESS)
+    if not user.has_permission('configure_system'):
+        in_progress_qs = in_progress_qs.filter(department=user.department)
+    in_progress_count = in_progress_qs.count()
+    pending_count = queue_length + in_progress_count
+    active_depts = all_entries_today.values('department__name').distinct().count() if user.has_permission('configure_system') else 1
     
     return JsonResponse({
         'queue_length': queue_length,
         'avg_wait_time': avg_wait_minutes,
         'served_today': served_today,
         'throughput': throughput,
-        'total_today': total_tickets_today
+        'total_today': total_tickets_today,
+        'pending': pending_count,
+        'active_depts': active_depts
     })
 
 
@@ -919,7 +928,11 @@ def api_dashboard_charts(request):
         'status_chart': status_data,
         'department_chart': dept_data,
         'service_chart': service_data,
-        'trend_chart': trend_data
+        'trend_chart': trend_data,
+        'queue_status': status_data,
+        'dept_workload': dept_data,
+        'service_dist': service_data,
+        'wait_trend': trend_data
     })
 
 
@@ -951,7 +964,7 @@ def api_dashboard_queue(request):
             'created_at': entry.created_at.isoformat()
         })
     
-    return JsonResponse({'entries': queue_data, 'total_waiting': queue_qs.count()})
+    return JsonResponse({'entries': queue_data, 'queue': queue_data, 'total_waiting': queue_qs.count()})
 
 
 # ============================================
