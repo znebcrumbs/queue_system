@@ -1,6 +1,6 @@
 // Dashboard JavaScript - Real-time queue monitoring with charts
 
-const Dashboard = {
+window.Dashboard = {
     config: {
         pollInterval: 5000,
         departmentId: '',

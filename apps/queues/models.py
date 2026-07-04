@@ -49,7 +49,9 @@ class Department(models.Model):
 class QueueEntry(models.Model):
     class Status(models.TextChoices):
         WAITING = "WAITING", "Waiting"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
         SERVED = "SERVED", "Served"
+        COMPLETED = "COMPLETED", "Completed"
         RETURNED = "RETURNED", "Returned"
         CANCELLED = "CANCELLED", "Cancelled"
 

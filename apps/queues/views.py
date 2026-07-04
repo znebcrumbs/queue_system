@@ -358,9 +358,10 @@ def update_queue_entry(request, entry_id):
 
     entry = get_object_or_404(QueueEntry, id=entry_id)
     old_status = entry.status
+    content_type = request.content_type or ''
 
     if request.method == "POST":
-        if request.content_type == "application/json":
+        if content_type.startswith("application/json"):
             try:
                 import json
                 data = json.loads(request.body)
@@ -372,9 +373,18 @@ def update_queue_entry(request, entry_id):
     else:  # allow GET with ?status=SERVED
         status = request.GET.get("status")
 
-    if status in dict(QueueEntry.Status.choices):
-        entry.status = status
-        if status == QueueEntry.Status.SERVED:
+    if isinstance(status, str):
+        status = status.strip()
+
+    # Normalize frontend values to backend QueueEntry statuses
+    if status == "COMPLETED":
+        normalized_status = QueueEntry.Status.SERVED
+    else:
+        normalized_status = status
+
+    if normalized_status in dict(QueueEntry.Status.choices):
+        entry.status = normalized_status
+        if normalized_status == QueueEntry.Status.SERVED:
             entry.served_at = timezone.now()
         entry.save()
         logger.info(f"Queue entry {entry.queue_number} status updated from {old_status} to {status} by {request.user if request.user.is_authenticated else 'Kiosk'}")
@@ -392,7 +402,7 @@ def update_queue_entry(request, entry_id):
         )
 
         # If AJAX request
-        if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
+        if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest" or content_type.startswith("application/json"):
             return JsonResponse({"id": entry.id, "status": entry.status})
     
     # For AJAX/JSON requests with invalid status, return error instead of redirect
@@ -936,6 +946,7 @@ def api_dashboard_queue(request):
             'customer_name': entry.name,
             'service_type': entry.service_type.name,
             'department': entry.department.name if entry.department else 'N/A',
+            'status': entry.status,
             'wait_time_minutes': int(wait_time),
             'created_at': entry.created_at.isoformat()
         })

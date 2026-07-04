@@ -15,7 +15,7 @@ if not User.objects.filter(username='superadmin').exists():
         is_staff=True,
         is_superuser=True
     )
-    # Assign Administrator role
+
     role = CustomRole.objects.get(name='Administrator')
     user.custom_role = role
     user.save()
