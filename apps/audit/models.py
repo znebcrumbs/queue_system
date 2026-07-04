@@ -9,7 +9,6 @@ class AuditLog(models.Model):
     Comprehensive audit trail for on-premise queue system.
     Tracks who did what, when, and what changed.
     """
-    
     class Action(models.TextChoices):
         # Authentication
         LOGIN = "LOGIN", "User Login"

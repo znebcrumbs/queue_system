@@ -298,10 +298,6 @@ KIOSK_API_KEY=your-secure-api-key-here
 - Review and test rate-limiting thresholds (currently 10 requests/min) based on expected kiosk load.
 
 
-If you want, I can also:
-- Generate a shorter README.md covering just the run instructions and important configuration snippets.
-- Create a management command `seed_initial_data` that creates departments and an admin user.
-- Add a small 'no_department.html' template and change `dashboard` to render it instead of redirecting.
 
 End of documentation file.
     

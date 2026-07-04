@@ -358,15 +358,33 @@ def update_queue_entry(request, entry_id):
 
     entry = get_object_or_404(QueueEntry, id=entry_id)
     old_status = entry.status
+    content_type = request.content_type or ''
 
     if request.method == "POST":
-        status = request.POST.get("status")
+        if content_type.startswith("application/json"):
+            try:
+                import json
+                data = json.loads(request.body)
+                status = data.get("status")
+            except json.JSONDecodeError:
+                status = None
+        else:
+            status = request.POST.get("status")
     else:  # allow GET with ?status=SERVED
         status = request.GET.get("status")
 
-    if status in dict(QueueEntry.Status.choices):
-        entry.status = status
-        if status == QueueEntry.Status.SERVED:
+    if isinstance(status, str):
+        status = status.strip()
+
+    # Normalize frontend values to backend QueueEntry statuses
+    if status == "COMPLETED":
+        normalized_status = QueueEntry.Status.SERVED
+    else:
+        normalized_status = status
+
+    if normalized_status in dict(QueueEntry.Status.choices):
+        entry.status = normalized_status
+        if normalized_status == QueueEntry.Status.SERVED:
             entry.served_at = timezone.now()
         entry.save()
         logger.info(f"Queue entry {entry.queue_number} status updated from {old_status} to {status} by {request.user if request.user.is_authenticated else 'Kiosk'}")
@@ -384,8 +402,12 @@ def update_queue_entry(request, entry_id):
         )
 
         # If AJAX request
-        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest" or content_type.startswith("application/json"):
             return JsonResponse({"id": entry.id, "status": entry.status})
+    
+    # For AJAX/JSON requests with invalid status, return error instead of redirect
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
+        return JsonResponse({"error": "Invalid status", "status": status}, status=400)
 
     return redirect("dashboard_v4")
 
@@ -773,37 +795,6 @@ import json
 from django.shortcuts import get_object_or_404, redirect
 from django.http import JsonResponse
 from .models import QueueEntry
-@csrf_exempt  # kiosk/staff API
-@require_http_methods(["POST", "GET"])
-def update_queue_entry(request, entry_id):
-    # Allow both authenticated staff AND kiosk with API key
-    if not request.user.is_authenticated:
-        api_key = request.headers.get("X-KIOSK-API-KEY") or request.POST.get("api_key") or request.GET.get("api_key")
-        if not api_key or api_key != settings.KIOSK_API_KEY:
-            logger.warning(f"Unauthorized update attempt to {request.path} from {request.META.get('REMOTE_ADDR')}")
-            return JsonResponse({"error": "Unauthorized"}, status=403)
-
-    entry = get_object_or_404(QueueEntry, id=entry_id)
-    old_status = entry.status
-
-    if request.method == "POST":
-        status = request.POST.get("status")
-    else:  # allow GET with ?status=SERVED
-        status = request.GET.get("status")
-
-    if status in dict(QueueEntry.Status.choices):
-        entry.status = status
-        if status == QueueEntry.Status.SERVED:
-            entry.served_at = timezone.now()
-        entry.save()
-        logger.info(f"Queue entry {entry.queue_number} status updated from {old_status} to {status} by {request.user if request.user.is_authenticated else 'Kiosk'}")
-
-        # If AJAX request
-        if request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return JsonResponse({"id": entry.id, "status": entry.status})
-
-    return redirect("dashboard_v4")
-
 
 # ============================================
 # PHASE 4 DASHBOARD API ENDPOINTS
@@ -812,7 +803,6 @@ def update_queue_entry(request, entry_id):
 from django.db.models import Case, When, Avg, F
 
 @login_required
-@require_permission('view_dashboard')
 def api_dashboard_kpi(request):
     """
     Dashboard KPI Endpoint - Real-time queue metrics
@@ -844,13 +834,22 @@ def api_dashboard_kpi(request):
     total_tickets_today = all_entries_today.count()
     hours_elapsed = (timezone.now() - timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds() / 3600
     throughput = round(total_tickets_today / max(hours_elapsed, 1), 2)
+
+    in_progress_qs = QueueEntry.objects.filter(status=QueueEntry.Status.IN_PROGRESS)
+    if not user.has_permission('configure_system'):
+        in_progress_qs = in_progress_qs.filter(department=user.department)
+    in_progress_count = in_progress_qs.count()
+    pending_count = queue_length + in_progress_count
+    active_depts = all_entries_today.values('department__name').distinct().count() if user.has_permission('configure_system') else 1
     
     return JsonResponse({
         'queue_length': queue_length,
         'avg_wait_time': avg_wait_minutes,
         'served_today': served_today,
         'throughput': throughput,
-        'total_today': total_tickets_today
+        'total_today': total_tickets_today,
+        'pending': pending_count,
+        'active_depts': active_depts
     })
 
 
@@ -929,7 +928,11 @@ def api_dashboard_charts(request):
         'status_chart': status_data,
         'department_chart': dept_data,
         'service_chart': service_data,
-        'trend_chart': trend_data
+        'trend_chart': trend_data,
+        'queue_status': status_data,
+        'dept_workload': dept_data,
+        'service_dist': service_data,
+        'wait_trend': trend_data
     })
 
 
@@ -956,11 +959,12 @@ def api_dashboard_queue(request):
             'customer_name': entry.name,
             'service_type': entry.service_type.name,
             'department': entry.department.name if entry.department else 'N/A',
+            'status': entry.status,
             'wait_time_minutes': int(wait_time),
             'created_at': entry.created_at.isoformat()
         })
     
-    return JsonResponse({'queue': queue_data, 'total_waiting': queue_qs.count()})
+    return JsonResponse({'entries': queue_data, 'queue': queue_data, 'total_waiting': queue_qs.count()})
 
 
 # ============================================
@@ -999,7 +1003,8 @@ def api_admin_analytics_kpi(request):
         'total_tickets': total_tickets,
         'completion_rate': completion_rate,
         'avg_resolution_time': avg_resolution_minutes,
-        'satisfaction_score': round(avg_satisfaction, 1)
+        'satisfaction_score': round(avg_satisfaction, 1),
+        'customer_satisfaction': round(avg_satisfaction, 1)
     })
 
 
@@ -1075,12 +1080,12 @@ def api_admin_analytics_charts(request):
     }
     
     return JsonResponse({
-        'ticket_volume': volume_chart,
-        'dept_performance': dept_chart,
-        'service_dist': service_chart,
-        'resolution_time': resolution_chart,
-        'staff_productivity': productivity_chart,
-        'satisfaction_trend': satisfaction_chart
+        'volume_chart': volume_chart,
+        'department_chart': dept_chart,
+        'service_chart': service_chart,
+        'resolution_chart': resolution_chart,
+        'productivity_chart': productivity_chart,
+        'satisfaction_chart': satisfaction_chart
     })
 
 
@@ -1152,13 +1157,13 @@ def api_admin_analytics_audit(request):
     except ValueError:
         limit = 50
     
-    audit_entries = AuditLog.objects.select_related('user').order_by('-created_at')[:limit]
+    audit_entries = AuditLog.objects.select_related('user').order_by('-timestamp')[:limit]
     
     audit_data = []
     for entry in audit_entries:
         audit_data.append({
             'id': entry.id,
-            'timestamp': entry.created_at.isoformat(),
+            'timestamp': entry.timestamp.isoformat(),
             'user': entry.user.username if entry.user else 'System',
             'action': entry.get_action_display(),
             'object_type': entry.object_type,

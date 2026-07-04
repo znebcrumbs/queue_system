@@ -1,6 +1,6 @@
 // Dashboard JavaScript - Real-time queue monitoring with charts
 
-const Dashboard = {
+window.Dashboard = {
     config: {
         pollInterval: 5000,
         departmentId: '',
@@ -79,8 +79,6 @@ const Dashboard = {
 
             // Update timestamp
             this.updateTimestamp();
-
-            notify.success('Dashboard updated', 2000);
         } catch (error) {
             console.error('Dashboard refresh error:', error);
             notify.error('Failed to update dashboard');
@@ -146,7 +144,7 @@ const Dashboard = {
         // Update stats
         document.getElementById('stat-total-today').textContent = data.total_today || 0;
         document.getElementById('stat-completed').textContent = data.completed || 0;
-        document.getElementById('stat-pending').textContent = data.pending || 0;
+        document.getElementById('stat-pending').textContent = data.pending || data.queue_length || 0;
         document.getElementById('stat-active-depts').textContent = data.active_depts || 0;
     },
 
@@ -160,50 +158,55 @@ const Dashboard = {
         });
         this.charts = {};
 
+        const statusData = data.status_chart || data.queue_status || {};
+        const deptData = data.department_chart || data.dept_workload || {};
+        const serviceData = data.service_chart || data.service_dist || {};
+        const waitTrendData = data.trend_chart || data.wait_trend || {};
+
         // Queue Status Chart
-        if (data.queue_status) {
+        if (statusData && (statusData.labels?.length || statusData.data?.length || statusData.values?.length)) {
             document.getElementById('queueStatusLoading').style.display = 'none';
             document.getElementById('queueStatusChart').style.display = 'block';
             
             this.charts.queueStatus = ChartConfig.createQueueStatusChart(
                 'queueStatusChart',
                 {
-                    labels: data.queue_status.labels,
-                    values: data.queue_status.values
+                    labels: statusData.labels || [],
+                    values: statusData.values || statusData.data || []
                 }
             );
         }
 
         // Department Workload Chart
-        if (data.dept_workload) {
+        if (deptData && (deptData.labels?.length || deptData.data?.length || deptData.values?.length)) {
             document.getElementById('deptWorkloadLoading').style.display = 'none';
             document.getElementById('deptWorkloadChart').style.display = 'block';
             
             this.charts.deptWorkload = ChartConfig.createDepartmentBarChart(
                 'deptWorkloadChart',
                 {
-                    labels: data.dept_workload.labels,
-                    values: data.dept_workload.values
+                    labels: deptData.labels || [],
+                    values: deptData.values || deptData.data || []
                 }
             );
         }
 
         // Service Distribution Chart
-        if (data.service_dist) {
+        if (serviceData && (serviceData.labels?.length || serviceData.data?.length || serviceData.values?.length)) {
             document.getElementById('serviceDistLoading').style.display = 'none';
             document.getElementById('serviceDistChart').style.display = 'block';
             
             this.charts.serviceDist = ChartConfig.createPieChart(
                 'serviceDistChart',
                 {
-                    labels: data.service_dist.labels,
-                    values: data.service_dist.values
+                    labels: serviceData.labels || [],
+                    values: serviceData.values || serviceData.data || []
                 }
             );
         }
 
         // Wait Time Trend Chart
-        if (data.wait_trend) {
+        if (waitTrendData && (waitTrendData.labels?.length || waitTrendData.data?.length || waitTrendData.values?.length)) {
             document.getElementById('waitTrendLoading').style.display = 'none';
             document.getElementById('waitTrendChart').style.display = 'block';
             
@@ -211,8 +214,8 @@ const Dashboard = {
                 'waitTrendChart',
                 {
                     label: 'Average Wait Time (minutes)',
-                    labels: data.wait_trend.labels,
-                    values: data.wait_trend.values
+                    labels: waitTrendData.labels || [],
+                    values: waitTrendData.values || waitTrendData.data || []
                 }
             );
         }

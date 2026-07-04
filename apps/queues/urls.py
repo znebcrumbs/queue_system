@@ -2,6 +2,11 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # v4 compatibility aliases
+    path("v4/dashboard/", views.dashboard_v4, name="dashboard_v4_v4"),
+    path("v4/kiosk/", views.kiosk_v4, name="kiosk_v4_v4"),
+    # Backwards-compatible name expected by templates/tests
+    path("dashboard/", views.dashboard_v4, name="dashboard"),
     path("departments/", views.department_selection, name="department_selection"),
     path("dashboard/", views.dashboard_v4, name="dashboard_v4"),
     path("kiosk/", views.kiosk_v4, name="kiosk_v4"),
