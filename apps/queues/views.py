@@ -1201,18 +1201,26 @@ def dashboard_v4(request):
 def kiosk_v4(request):
     """Enhanced Kiosk v4 - Multi-step form"""
     import json
-    
-    departments = Department.objects.all()
-    service_types = ServiceType.objects.all()
-    
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        departments = list(Department.objects.all())
+        service_types = list(ServiceType.objects.all())
+    except Exception as exc:
+        logger.warning("Kiosk bootstrap fallback used because queue tables are unavailable: %s", exc)
+        departments = []
+        service_types = []
+
     # Create Python dicts for JSON serialization
     departments_data = [{'id': d.id, 'name': d.name} for d in departments]
     service_types_data = [{'id': s.id, 'name': s.name, 'department_id': s.department_id} for s in service_types]
-    
+
     # Convert to JSON strings for safe template rendering
     departments_json = json.dumps(departments_data)
     service_types_json = json.dumps(service_types_data)
-    
+
     context = {
         'departments': departments,
         'service_types': service_types,
@@ -1226,10 +1234,22 @@ def kiosk_v4(request):
 @require_permission('configure_system')
 def admin_analytics(request):
     """Admin Analytics Dashboard v4"""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        departments = list(Department.objects.all())
+        service_types = list(ServiceType.objects.all())
+    except Exception as exc:
+        logger.warning("Analytics bootstrap fallback used because queue tables are unavailable: %s", exc)
+        departments = []
+        service_types = []
+
     context = {
         'user': request.user,
-        'departments': Department.objects.all(),
-        'service_types': ServiceType.objects.all(),
+        'departments': departments,
+        'service_types': service_types,
         'default_days': 30,
     }
     return render(request, 'admin/analytics_dashboard.html', context)
