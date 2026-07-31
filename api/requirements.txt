@@ -1,0 +1,12 @@
+Django==5.2.11
+channels==4.3.2
+channels-redis==4.3.0
+daphne==4.2.1
+djangorestframework==3.16.1
+pillow==12.1.1
+psycopg2-binary==2.9.10
+python-decouple==3.8
+python-dotenv==1.2.1
+qrcode==5.3
+redis==7.1.1
+requests==2.32.3
