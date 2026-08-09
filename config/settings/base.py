@@ -47,12 +47,6 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'queue_system.log',
-            'formatter': 'verbose',
-        },
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
@@ -61,12 +55,21 @@ LOGGING = {
     },
     'loggers': {
         'apps.queues': {
-            'handlers': ['file', 'console'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
         },
     },
 }
+
+if not config('VERCEL', default=False, cast=bool):
+    LOGGING['handlers']['file'] = {
+        'level': 'INFO',
+        'class': 'logging.FileHandler',
+        'filename': BASE_DIR / 'queue_system.log',
+        'formatter': 'verbose',
+    }
+    LOGGING['loggers']['apps.queues']['handlers'] = ['file', 'console']
 
 AUTH_USER_MODEL = 'accounts.User'
 
