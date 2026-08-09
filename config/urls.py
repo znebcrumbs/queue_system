@@ -14,9 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.contrib.auth import views as auth_views
+from django.views.generic.base import RedirectView
+from django.views.static import serve
 from apps.queues import views as queue_views
 from apps.accounts.views import CentralLoginView
 from apps.queues import views
@@ -25,7 +28,7 @@ urlpatterns = [
     # Specific admin analytics route must come before the generic admin site route
     path("admin/v4/analytics/", views.admin_analytics, name="admin_analytics_dashboard"),
     path("admin/", admin.site.urls),
-    
+
     # Top-level API routes (proxy to /queues/api/ for backwards compatibility)
     path("api/dashboard/kpi/", views.api_dashboard_kpi, name="api_dashboard_kpi_root"),
     path("api/dashboard/charts/", views.api_dashboard_charts, name="api_dashboard_charts_root"),
@@ -34,7 +37,7 @@ urlpatterns = [
     path("api/admin/analytics/charts/", views.api_admin_analytics_charts, name="api_admin_analytics_charts_root"),
     path("api/admin/analytics/tables/", views.api_admin_analytics_tables, name="api_admin_analytics_tables_root"),
     path("api/admin/analytics/audit/", views.api_admin_analytics_audit, name="api_admin_analytics_audit_root"),
-    
+
     path("accounts/", include("apps.accounts.urls")),
     path("queues/", include("apps.queues.urls")),
     path("survey/", include("apps.survey.urls")),
@@ -45,9 +48,14 @@ urlpatterns = [
     path('', views.kiosk_v4, name='kiosk'),
     path("admin/reports/", views.admin_reports_dashboard, name="admin_reports_dashboard"),
 
-
     # Authentication
-   # path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
-   # path("logout/", auth_views.LogoutView.as_view(next_page="landing"), name="logout"),
+    # path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    # path("logout/", auth_views.LogoutView.as_view(next_page="landing"), name="logout"),
 
 ]
+
+urlpatterns += [
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
+    path('favicon.ico', RedirectView.as_view(url='/static/favicon.svg', permanent=False)),
+]
+
