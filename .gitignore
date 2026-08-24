@@ -15,7 +15,8 @@ ENV/
 *.sqlite3
 db.sqlite3
 media/
-staticfiles/
+# Leave staticfiles generated for deployment, especially admin assets
+# staticfiles/
 *.log
 
 # VS Code
