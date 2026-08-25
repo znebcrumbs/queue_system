@@ -3,6 +3,7 @@ from decouple import config
 from urllib.parse import parse_qs, urlparse
 
 DEBUG = True
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,[::1]', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
 
 # Database: PostgreSQL or SQLite
 DATABASE_URL = config('DATABASE_URL', default='', cast=str)

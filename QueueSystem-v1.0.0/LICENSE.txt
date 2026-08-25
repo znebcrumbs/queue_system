@@ -1,0 +1,18 @@
+QueueSystem Commercial License Agreement
+
+This software is licensed for commercial use under a limited, customer-specific commercial license. This package is not open source and may not be redistributed, sublicensed, or published without written authorisation from the copyright holder.
+
+Customer rights may include:
+- right to install the software in a licensed environment
+- right to operate the software for internal business use
+- right to receive support and updates under the applicable support agreement
+
+Customer restrictions may include:
+- no redistribution or resale of the source code
+- no publication of the source code
+- no sublicensing unless explicitly stated in writing
+- no claim of authorship or ownership of the software
+
+This licence does not transfer ownership of the intellectual property. All rights remain with the original copyright holder.
+
+For full legal terms, a lawyer-reviewed agreement should be executed before a commercial sale or deployment. This file is a placeholder summary only and does not replace a formal commercial contract.

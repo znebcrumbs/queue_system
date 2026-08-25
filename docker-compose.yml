@@ -1,0 +1,36 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: queue-system-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-queue_system}
+      POSTGRES_USER: ${DB_USER:-queue_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    container_name: queue-system-web
+    command: >
+      sh -c "python manage.py migrate &&
+      python manage.py collectstatic --noinput &&
+      gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DATABASE_URL: ${DATABASE_URL:-postgresql://queue_user:change-me@db:5432/queue_system?sslmode=require}
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+volumes:
+  postgres_data:

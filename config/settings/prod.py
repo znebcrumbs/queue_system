@@ -1,11 +1,13 @@
 from .base import *
 from decouple import config
 from urllib.parse import parse_qs, urlparse
+from django.core.exceptions import ImproperlyConfigured
 
 DEBUG = False
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+SECRET_KEY = config('SECRET_KEY')
 
-# PostgreSQL Configuration for Production (Optional fallback for serverless)
+# PostgreSQL Configuration for Production
 DATABASE_URL = config('DATABASE_URL', default='', cast=str)
 if DATABASE_URL:
     parsed = urlparse(DATABASE_URL)
@@ -41,12 +43,10 @@ elif config('USE_POSTGRES', default=False, cast=bool):
         }
     }
 else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+    raise ImproperlyConfigured(
+        'Production settings require PostgreSQL via DATABASE_URL or USE_POSTGRES=True. '
+        'SQLite is not permitted in a commercial production environment.'
+    )
 
 # ============================================
 # PRODUCTION SECURITY SETTINGS (CRITICAL)
@@ -55,22 +55,30 @@ else:
 # SSL/HTTPS
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+SECURE_REDIRECT_EXEMPT = []
 
 # HSTS (HTTP Strict Transport Security)
-SECURE_HSTS_SECONDS = 31536000  # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=True, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=True, cast=bool)
 
 # Cookie Security
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Strict'
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=True, cast=bool)
+SESSION_COOKIE_HTTPONLY = config('SESSION_COOKIE_HTTPONLY', default=True, cast=bool)
+SESSION_COOKIE_SAMESITE = config('SESSION_COOKIE_SAMESITE', default='Lax')
 
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = 'Strict'
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=True, cast=bool)
+CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=True, cast=bool)
+CSRF_COOKIE_SAMESITE = config('CSRF_COOKIE_SAMESITE', default='Lax')
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='',
+    cast=lambda v: [s.strip() for s in v.split(',') if s.strip()],
+)
+if not CSRF_TRUSTED_ORIGINS:
+    raise ImproperlyConfigured('CSRF_TRUSTED_ORIGINS must be configured in production.')
 
-# Security Headers (from base.py, override here if needed)
+# Security Headers
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
