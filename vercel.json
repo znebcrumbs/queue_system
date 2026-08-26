@@ -9,6 +9,10 @@
       }
     }
   ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "config.settings.prod",
+    "VERCEL": "1"
+  },
   "buildCommand": "python manage.py collectstatic --noinput --clear",
   "routes": [
     {

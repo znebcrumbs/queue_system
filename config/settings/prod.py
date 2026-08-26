@@ -1,11 +1,17 @@
 from .base import *
 from decouple import config
 from urllib.parse import parse_qs, urlparse
+from decouple import UndefinedValueError
 from django.core.exceptions import ImproperlyConfigured
 
 DEBUG = False
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
-SECRET_KEY = config('SECRET_KEY')
+try:
+    SECRET_KEY = config('SECRET_KEY')
+except UndefinedValueError as exc:
+    raise ImproperlyConfigured(
+        'SECRET_KEY is not configured. Add a unique production secret to the deployment environment.'
+    ) from exc
 
 # PostgreSQL Configuration for Production
 DATABASE_URL = config('DATABASE_URL', default='', cast=str)

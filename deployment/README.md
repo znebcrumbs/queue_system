@@ -31,6 +31,23 @@ Required values:
 - `KIOSK_API_KEY`
 - `DEBUG=False`
 
+### Vercel deployment
+
+Vercel does not import `.env.example`. Add the production values in the Vercel project settings or with the Vercel CLI before deploying. At minimum, configure `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, and `KIOSK_API_KEY` for the Production environment. Use a unique randomly generated `SECRET_KEY` and never commit it to Git.
+
+Example CLI setup (the secret values are entered interactively or supplied from a secure secret manager):
+
+```bash
+vercel env add SECRET_KEY production
+vercel env add DATABASE_URL production
+vercel env add ALLOWED_HOSTS production
+vercel env add CSRF_TRUSTED_ORIGINS production
+vercel env add KIOSK_API_KEY production
+vercel --prod
+```
+
+The repository's `vercel.json` sets `DJANGO_SETTINGS_MODULE=config.settings.prod` and `VERCEL=1`. PostgreSQL must be reachable from Vercel; a private Docker hostname such as `db` will not work from a Vercel function. If the database is private, use a supported public or serverless PostgreSQL endpoint with TLS, or deploy QueueSystem on the documented VM or Docker model instead.
+
 ## One-time setup
 
 1. Create a PostgreSQL database.
