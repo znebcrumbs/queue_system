@@ -1,5 +1,9 @@
 # Change Log
 
+QueueSystem follows Semantic Versioning: `MAJOR.MINOR.PATCH`. Major versions may contain breaking changes, minor versions add backwards-compatible functionality, and patch versions contain backwards-compatible fixes.
+
+Release notes use the headings Added, Changed, Fixed, Security, Deprecated, Removed, Breaking changes, and Upgrade notes. Database schema changes are documented with the release and must be applied using Django migrations.
+
 ## v1.0.0
 
 ### Added
